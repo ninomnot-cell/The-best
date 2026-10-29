@@ -1,0 +1,6 @@
+{
+  "name": "The Best Family Club - ប្រព័ន្ធគ្រប់គ្រងសមាគម និងកម្ចី",
+  "description": "ប្រព័ន្ធគ្រប់គ្រងទិន្នន័យសមាជិក ការសន្សំប្រាក់ប្រចាំខែ កម្ចីក្នុងនិងក្រៅសមាគម តារាងបង់ប្រាក់ កិច្ចសន្យា និងរចនាសម្ព័ន្ធមូលដ្ឋានទិន្នន័យសម្រាប់ The Best Family Club",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
