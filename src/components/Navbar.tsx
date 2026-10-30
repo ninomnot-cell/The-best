@@ -9,6 +9,8 @@ export const Navbar: React.FC = () => {
     notifications, 
     applications,
     currentUser,
+    supabaseUser,
+    supabaseSignOut,
     setIsLoginModalOpen
   } = useClub();
 
@@ -109,7 +111,7 @@ export const Navbar: React.FC = () => {
             </button>
           </nav>
 
-          {/* Zone 3: 1 Primary Action + Notification Button + Member Profile / Login */}
+          {/* Zone 3: 1 Primary Action + Notification Button + Member Profile / Supabase Auth Logout */}
           <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={() => setCurrentTab('reminders')}
@@ -137,7 +139,7 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* Current Member Profile / Login Switcher */}
+            {/* Current Member Profile / Supabase Session Info */}
             {currentUser ? (
               <div className="flex items-center gap-2 pl-1 border-l border-slate-200">
                 <button
@@ -165,6 +167,27 @@ export const Navbar: React.FC = () => {
               >
                 ចូលប្រើ (Log In)
               </button>
+            )}
+
+            {/* Supabase Auth User & Logout */}
+            {supabaseUser && (
+              <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200 text-xs">
+                <div className="text-right hidden xl:block">
+                  <div className="text-[10px] text-emerald-600 font-bold font-mono">
+                    Supabase Auth Active
+                  </div>
+                  <div className="text-[11px] text-slate-600 truncate max-w-32 font-mono">
+                    {supabaseUser.email}
+                  </div>
+                </div>
+                <button
+                  onClick={supabaseSignOut}
+                  title="ចាកចេញពី Supabase Auth (Sign Out)"
+                  className="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  ចាកចេញ
+                </button>
+              </div>
             )}
           </div>
         </div>

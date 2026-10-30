@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Member, 
   MonthlySavingRecord, 
@@ -15,6 +15,20 @@ import {
   INITIAL_APPLICATIONS,
   generateAmortizationSchedule
 } from '../data/initialData';
+import { 
+  supabase, 
+  isSupabaseConfigured,
+  mapMemberFromRow,
+  mapMemberToRow,
+  mapSavingFromRow,
+  mapSavingToRow,
+  mapLoanFromRow,
+  mapLoanToRow,
+  mapScheduleToRow,
+  mapApplicationFromRow,
+  mapApplicationToRow
+} from '../lib/supabase';
+import { User, Session } from '@supabase/supabase-js';
 
 interface ClubContextType {
   members: Member[];
@@ -32,103 +46,253 @@ interface ClubContextType {
   selectedMemberForDetail: Member | null;
   setSelectedMemberForDetail: (member: Member | null) => void;
   
-  // Auth & Profile
+  // Auth & Session
   currentUser: Member | null;
+  supabaseSession: Session | null;
+  supabaseUser: User | null;
+  isSupabaseConfigured: boolean;
+  isLoadingData: boolean;
+  supabaseError: string | null;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
+  
+  // Actions
   login: (phoneOrCode: string, pin?: string) => boolean;
   quickLoginAsMember: (memberId: string) => void;
   logout: () => void;
-  updateMemberProfile: (memberId: string, updatedData: Partial<Member>) => void;
+  supabaseSignOut: () => Promise<void>;
+  updateMemberProfile: (memberId: string, updatedData: Partial<Member>) => Promise<void>;
   
-  // Actions
-  addMember: (member: Omit<Member, 'id' | 'memberCode' | 'totalSavings' | 'totalDividendsEarned' | 'activeLoanAmount'>) => void;
-  updateMember: (member: Member) => void;
-  addSavingsRecord: (record: Omit<MonthlySavingRecord, 'id'>) => void;
-  submitLoanApplication: (app: Omit<LoanApplication, 'id' | 'status' | 'appliedDate'>) => void;
-  approveLoanApplication: (applicationId: string, customInterestRate?: number, customMethod?: import('../types').InterestMethod) => void;
-  rejectLoanApplication: (applicationId: string) => void;
-  recordLoanRepayment: (loanId: string, installmentNumber: number, receiptNumber: string, paidAmount?: number) => void;
-  markReminderSent: (notificationId: string) => void;
-  resetToDefaultData: () => void;
+  addMember: (member: Omit<Member, 'id' | 'memberCode' | 'totalSavings' | 'totalDividendsEarned' | 'activeLoanAmount'>) => Promise<void>;
+  updateMember: (member: Member) => Promise<void>;
+  addSavingsRecord: (record: Omit<MonthlySavingRecord, 'id'>) => Promise<void>;
+  submitLoanApplication: (app: Omit<LoanApplication, 'id' | 'status' | 'appliedDate'>) => Promise<void>;
+  approveLoanApplication: (applicationId: string, customInterestRate?: number, customMethod?: import('../types').InterestMethod) => Promise<void>;
+  rejectLoanApplication: (applicationId: string) => Promise<void>;
+  recordLoanRepayment: (loanId: string, installmentNumber: number, receiptNumber: string, paidAmount?: number) => Promise<void>;
+  markReminderSent: (notificationId: string) => Promise<void>;
+  refreshData: () => Promise<void>;
+  resetToDefaultData: () => Promise<void>;
 }
 
 const ClubContext = createContext<ClubContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'the_best_family_club_data_v2';
-
 export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [members, setMembers] = useState<Member[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_members`);
-    return saved ? JSON.parse(saved) : INITIAL_MEMBERS;
-  });
-
-  const [savingsRecords, setSavingsRecords] = useState<MonthlySavingRecord[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_savings`);
-    return saved ? JSON.parse(saved) : INITIAL_SAVINGS_RECORDS;
-  });
-
-  const [loans, setLoans] = useState<Loan[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_loans`);
-    return saved ? JSON.parse(saved) : INITIAL_LOANS;
-  });
-
-  const [applications, setApplications] = useState<LoanApplication[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_applications`);
-    return saved ? JSON.parse(saved) : INITIAL_APPLICATIONS;
-  });
-
-  const [currentUser, setCurrentUser] = useState<Member | null>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_current_user`);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return null; }
-    }
-    return INITIAL_MEMBERS[0]; // default logged in as Sok Chenda (Club President)
-  });
-
+  const [members, setMembers] = useState<Member[]>([]);
+  const [savingsRecords, setSavingsRecords] = useState<MonthlySavingRecord[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [applications, setApplications] = useState<LoanApplication[]>([]);
+  const [sentReminderIds, setSentReminderIds] = useState<string[]>([]);
+  
+  const [supabaseSession, setSupabaseSession] = useState<Session | null>(null);
+  const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<Member | null>(null);
+  
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+  const [supabaseError, setSupabaseError] = useState<string | null>(null);
+  
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [selectedLoanForSchedule, setSelectedLoanForSchedule] = useState<Loan | null>(null);
   const [selectedLoanForContract, setSelectedLoanForContract] = useState<Loan | null>(null);
   const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<Member | null>(null);
-  const [sentReminderIds, setSentReminderIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_sent_reminders`);
-    return saved ? JSON.parse(saved) : [];
-  });
 
-  // Sync to localStorage
+  // 1. Listen for Supabase Auth changes
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(`${STORAGE_KEY}_current_user`, JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem(`${STORAGE_KEY}_current_user`);
+    if (!isSupabaseConfigured) {
+      setIsLoadingData(false);
+      // Fallback local defaults
+      setMembers(INITIAL_MEMBERS);
+      setSavingsRecords(INITIAL_SAVINGS_RECORDS);
+      setLoans(INITIAL_LOANS);
+      setApplications(INITIAL_APPLICATIONS);
+      setCurrentUser(INITIAL_MEMBERS[0]);
+      return;
     }
-  }, [currentUser]);
 
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSupabaseSession(session);
+      setSupabaseUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseSession(session);
+      setSupabaseUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // 2. Function to load/sync data from Supabase
+  const fetchDataFromSupabase = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+
+    setIsLoadingData(true);
+    setSupabaseError(null);
+
+    try {
+      // Fetch members
+      const { data: memberRows, error: memberErr } = await supabase
+        .from('members')
+        .select('*')
+        .order('member_code', { ascending: true });
+
+      if (memberErr) throw memberErr;
+
+      // Auto-seed if Supabase database is empty
+      if (!memberRows || memberRows.length === 0) {
+        console.log('Database empty! Auto-seeding initial data into Supabase...');
+        await seedInitialDataToSupabase();
+        return;
+      }
+
+      const mappedMembers = memberRows.map(mapMemberFromRow);
+      setMembers(mappedMembers);
+
+      // Match current user
+      if (!currentUser) {
+        if (supabaseUser?.email) {
+          const matched = mappedMembers.find(m => m.email?.toLowerCase() === supabaseUser.email?.toLowerCase());
+          setCurrentUser(matched || mappedMembers[0]);
+        } else {
+          setCurrentUser(mappedMembers[0]);
+        }
+      }
+
+      // Fetch savings
+      const { data: savingRows, error: savingErr } = await supabase
+        .from('monthly_savings')
+        .select('*')
+        .order('payment_date', { ascending: false });
+
+      if (savingErr) throw savingErr;
+      setSavingsRecords((savingRows || []).map(mapSavingFromRow));
+
+      // Fetch loans & schedules
+      const { data: loanRows, error: loanErr } = await supabase
+        .from('loans')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (loanErr) throw loanErr;
+
+      const { data: scheduleRows, error: scheduleErr } = await supabase
+        .from('loan_repayment_schedules')
+        .select('*');
+
+      if (scheduleErr) throw scheduleErr;
+
+      const scheduleMap: Record<string, any[]> = {};
+      (scheduleRows || []).forEach(s => {
+        const lid = String(s.loan_id);
+        if (!scheduleMap[lid]) scheduleMap[lid] = [];
+        scheduleMap[lid].push(s);
+      });
+
+      const mappedLoans = (loanRows || []).map(l => mapLoanFromRow(l, scheduleMap[String(l.id)] || []));
+      setLoans(mappedLoans);
+
+      // Fetch applications
+      const { data: appRows, error: appErr } = await supabase
+        .from('loan_applications')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!appErr && appRows) {
+        setApplications(appRows.map(mapApplicationFromRow));
+      }
+
+      // Fetch notifications log for sent reminders
+      const { data: notifRows } = await supabase
+        .from('notifications_log')
+        .select('*');
+
+      if (notifRows) {
+        const sentIds = notifRows.map(n => String(n.id || n.loan_id));
+        setSentReminderIds(sentIds);
+      }
+
+    } catch (err: any) {
+      console.error('Error fetching Supabase data:', err);
+      setSupabaseError(err.message || 'Failed to load data from Supabase');
+    } finally {
+      setIsLoadingData(false);
+    }
+  }, [supabaseUser]);
+
+  // Seed initial dataset into fresh Supabase tables
+  const seedInitialDataToSupabase = async () => {
+    try {
+      // Insert members
+      const memberRows = INITIAL_MEMBERS.map(mapMemberToRow);
+      await supabase.from('members').upsert(memberRows);
+
+      // Insert savings
+      const savingRows = INITIAL_SAVINGS_RECORDS.map(mapSavingToRow);
+      await supabase.from('monthly_savings').upsert(savingRows);
+
+      // Insert loans & schedules
+      for (const loan of INITIAL_LOANS) {
+        const loanRow = mapLoanToRow(loan);
+        await supabase.from('loans').upsert([loanRow]);
+
+        const schedRows = loan.schedule.map(s => mapScheduleToRow(s, loan.id));
+        await supabase.from('loan_repayment_schedules').upsert(schedRows);
+      }
+
+      // Insert applications
+      const appRows = INITIAL_APPLICATIONS.map(mapApplicationToRow);
+      await supabase.from('loan_applications').upsert(appRows);
+
+      console.log('Auto-seed completed successfully!');
+      // Re-fetch mapped data
+      const { data: mRows } = await supabase.from('members').select('*');
+      if (mRows) setMembers(mRows.map(mapMemberFromRow));
+
+      const { data: sRows } = await supabase.from('monthly_savings').select('*');
+      if (sRows) setSavingsRecords(sRows.map(mapSavingFromRow));
+
+      setLoans(INITIAL_LOANS);
+      setApplications(INITIAL_APPLICATIONS);
+      setCurrentUser(INITIAL_MEMBERS[0]);
+    } catch (e: any) {
+      console.error('Error seeding Supabase:', e);
+      setSupabaseError('Seeding initial data failed: ' + e.message);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  // 3. Load data on mount & set up Realtime subscription
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_members`, JSON.stringify(members));
-  }, [members]);
+    if (isSupabaseConfigured) {
+      fetchDataFromSupabase();
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_savings`, JSON.stringify(savingsRecords));
-  }, [savingsRecords]);
+      // Realtime subscription across all tables
+      const channel = supabase
+        .channel('public:all_changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public' },
+          (_payload) => {
+            console.log('Realtime DB change received! Syncing across devices...');
+            fetchDataFromSupabase();
+          }
+        )
+        .subscribe();
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_loans`, JSON.stringify(loans));
-  }, [loans]);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [fetchDataFromSupabase]);
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_applications`, JSON.stringify(applications));
-  }, [applications]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_sent_reminders`, JSON.stringify(sentReminderIds));
-  }, [sentReminderIds]);
-
-  // Derive notifications from active loan repayment schedules
+  // Derived notifications from active loan repayment schedules
   const notifications = useMemo(() => {
     const list: NotificationReminder[] = [];
-    const today = new Date('2026-10-27'); // anchor date based on metadata context
+    const today = new Date('2026-10-27');
 
     loans.forEach(loan => {
       if (loan.status === 'COMPLETED' || loan.status === 'REJECTED') return;
@@ -172,7 +336,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     });
 
-    // Sort overdue first, then due today, then upcoming
     return list.sort((a, b) => {
       const order = { OVERDUE: 0, DUE_TODAY: 1, UPCOMING: 2 };
       return order[a.status] - order[b.status];
@@ -205,8 +368,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [members, loans, notifications]);
 
-  // Add Member
-  const addMember = (data: Omit<Member, 'id' | 'memberCode' | 'totalSavings' | 'totalDividendsEarned' | 'activeLoanAmount'>) => {
+  // MUTATION ACTIONS
+  const addMember = async (data: Omit<Member, 'id' | 'memberCode' | 'totalSavings' | 'totalDividendsEarned' | 'activeLoanAmount'>) => {
     const nextCode = `TBF-00${members.length + 1}`;
     const newMember: Member = {
       ...data,
@@ -216,16 +379,26 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalDividendsEarned: 0,
       activeLoanAmount: 0
     };
+
     setMembers(prev => [...prev, newMember]);
+
+    if (isSupabaseConfigured) {
+      await supabase.from('members').insert([mapMemberToRow(newMember)]);
+    }
   };
 
-  // Update Member
-  const updateMember = (updated: Member) => {
+  const updateMember = async (updated: Member) => {
     setMembers(prev => prev.map(m => m.id === updated.id ? updated : m));
+
+    if (isSupabaseConfigured) {
+      await supabase
+        .from('members')
+        .update(mapMemberToRow(updated))
+        .eq('id', updated.id);
+    }
   };
 
-  // Add Monthly Savings
-  const addSavingsRecord = (recordData: Omit<MonthlySavingRecord, 'id'>) => {
+  const addSavingsRecord = async (recordData: Omit<MonthlySavingRecord, 'id'>) => {
     const newRecord: MonthlySavingRecord = {
       ...recordData,
       id: `sav-${Date.now()}`
@@ -233,31 +406,41 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setSavingsRecords(prev => [newRecord, ...prev]);
 
-    // Update member's accumulated total savings
-    setMembers(prev => prev.map(m => {
-      if (m.id === recordData.memberId) {
-        return {
-          ...m,
-          totalSavings: m.totalSavings + recordData.amount
-        };
+    // Update member total savings
+    const targetMember = members.find(m => m.id === recordData.memberId);
+    if (targetMember) {
+      const updatedSavings = targetMember.totalSavings + recordData.amount;
+      setMembers(prev => prev.map(m => m.id === targetMember.id ? { ...m, totalSavings: updatedSavings } : m));
+
+      if (isSupabaseConfigured) {
+        await supabase
+          .from('members')
+          .update({ total_savings: updatedSavings })
+          .eq('id', targetMember.id);
       }
-      return m;
-    }));
+    }
+
+    if (isSupabaseConfigured) {
+      await supabase.from('monthly_savings').insert([mapSavingToRow(newRecord)]);
+    }
   };
 
-  // Apply for Loan
-  const submitLoanApplication = (appData: Omit<LoanApplication, 'id' | 'status' | 'appliedDate'>) => {
+  const submitLoanApplication = async (appData: Omit<LoanApplication, 'id' | 'status' | 'appliedDate'>) => {
     const newApp: LoanApplication = {
       ...appData,
       id: `app-${Date.now()}`,
       status: 'PENDING',
       appliedDate: '2026-10-27'
     };
+
     setApplications(prev => [newApp, ...prev]);
+
+    if (isSupabaseConfigured) {
+      await supabase.from('loan_applications').insert([mapApplicationToRow(newApp)]);
+    }
   };
 
-  // Approve Loan Application
-  const approveLoanApplication = (appId: string, customRate?: number, customMethod?: import('../types').InterestMethod) => {
+  const approveLoanApplication = async (appId: string, customRate?: number, customMethod?: import('../types').InterestMethod) => {
     const app = applications.find(a => a.id === appId);
     if (!app) return;
 
@@ -311,68 +494,68 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setLoans(prev => [newLoan, ...prev]);
-
-    // Update application status
     setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'APPROVED' } : a));
 
-    // If member, update their active loan amount
     if (app.applicantType === 'MEMBER' && app.memberId) {
       setMembers(prev => prev.map(m => m.id === app.memberId ? { ...m, activeLoanAmount: m.activeLoanAmount + app.requestedAmount } : m));
     }
+
+    if (isSupabaseConfigured) {
+      await supabase.from('loans').insert([mapLoanToRow(newLoan)]);
+      const schedRows = schedule.map(s => mapScheduleToRow(s, newLoan.id));
+      await supabase.from('loan_repayment_schedules').insert(schedRows);
+      await supabase.from('loan_applications').update({ status: 'APPROVED' }).eq('id', appId);
+
+      if (app.applicantType === 'MEMBER' && app.memberId) {
+        const mem = members.find(m => m.id === app.memberId);
+        if (mem) {
+          await supabase.from('members').update({ active_loan_amount: mem.activeLoanAmount + app.requestedAmount }).eq('id', app.memberId);
+        }
+      }
+    }
   };
 
-  // Reject Loan Application
-  const rejectLoanApplication = (appId: string) => {
+  const rejectLoanApplication = async (appId: string) => {
     setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'REJECTED' } : a));
+    if (isSupabaseConfigured) {
+      await supabase.from('loan_applications').update({ status: 'REJECTED' }).eq('id', appId);
+    }
   };
 
-  // Record Repayment
-  const recordLoanRepayment = (
+  const recordLoanRepayment = async (
     loanId: string, 
     installmentNumber: number, 
     receiptNumber: string,
     paidAmount?: number
   ) => {
+    const targetLoan = loans.find(l => l.id === loanId);
+    if (!targetLoan) return;
+
+    let paidPrincipalDelta = 0;
+    let paidInterestDelta = 0;
+
+    const updatedSchedule = targetLoan.schedule.map(item => {
+      if (item.installmentNumber === installmentNumber) {
+        paidPrincipalDelta = item.principal;
+        paidInterestDelta = item.interest;
+        return {
+          ...item,
+          status: 'PAID' as const,
+          paidDate: '2026-10-27',
+          paidAmount: paidAmount || item.totalDue,
+          receiptNumber: receiptNumber
+        };
+      }
+      return item;
+    });
+
+    const newRemaining = Math.max(0, targetLoan.remainingBalance - paidPrincipalDelta);
+    const allPaid = updatedSchedule.every(item => item.status === 'PAID');
+    const hasOverdue = updatedSchedule.some(item => item.status === 'OVERDUE');
+    const newStatus = allPaid ? 'COMPLETED' : (hasOverdue ? 'OVERDUE' : 'ACTIVE');
+
     setLoans(prevLoans => prevLoans.map(loan => {
       if (loan.id !== loanId) return loan;
-
-      let paidPrincipalDelta = 0;
-      let paidInterestDelta = 0;
-
-      const updatedSchedule = loan.schedule.map(item => {
-        if (item.installmentNumber === installmentNumber) {
-          paidPrincipalDelta = item.principal;
-          paidInterestDelta = item.interest;
-          return {
-            ...item,
-            status: 'PAID' as const,
-            paidDate: '2026-10-27',
-            paidAmount: paidAmount || item.totalDue,
-            receiptNumber: receiptNumber
-          };
-        }
-        return item;
-      });
-
-      const newRemaining = Math.max(0, loan.remainingBalance - paidPrincipalDelta);
-      const allPaid = updatedSchedule.every(item => item.status === 'PAID');
-      const hasOverdue = updatedSchedule.some(item => item.status === 'OVERDUE');
-
-      const newStatus = allPaid ? 'COMPLETED' : (hasOverdue ? 'OVERDUE' : 'ACTIVE');
-
-      // Also if borrower was a member, update member's active loan amount
-      if (loan.borrowerType === 'MEMBER' && loan.borrowerId) {
-        setMembers(prevMembers => prevMembers.map(m => {
-          if (m.id === loan.borrowerId) {
-            return {
-              ...m,
-              activeLoanAmount: Math.max(0, m.activeLoanAmount - paidPrincipalDelta)
-            };
-          }
-          return m;
-        }));
-      }
-
       return {
         ...loan,
         remainingBalance: newRemaining,
@@ -382,16 +565,93 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         schedule: updatedSchedule
       };
     }));
-  };
 
-  // Mark Reminder as Sent
-  const markReminderSent = (notificationId: string) => {
-    if (!sentReminderIds.includes(notificationId)) {
-      setSentReminderIds(prev => [...prev, notificationId]);
+    if (targetLoan.borrowerType === 'MEMBER' && targetLoan.borrowerId) {
+      setMembers(prevMembers => prevMembers.map(m => {
+        if (m.id === targetLoan.borrowerId) {
+          return {
+            ...m,
+            activeLoanAmount: Math.max(0, m.activeLoanAmount - paidPrincipalDelta)
+          };
+        }
+        return m;
+      }));
+    }
+
+    if (isSupabaseConfigured) {
+      // Update schedule item in Supabase
+      await supabase
+        .from('loan_repayment_schedules')
+        .update({
+          status: 'PAID',
+          paid_date: '2026-10-27',
+          paid_amount: paidAmount || (targetLoan.schedule.find(s => s.installmentNumber === installmentNumber)?.totalDue ?? 0),
+          receipt_number: receiptNumber
+        })
+        .eq('loan_id', loanId)
+        .eq('installment_number', installmentNumber);
+
+      // Update loan status & remaining balance
+      await supabase
+        .from('loans')
+        .update({
+          remaining_balance: newRemaining,
+          status: newStatus
+        })
+        .eq('id', loanId);
+
+      if (targetLoan.borrowerType === 'MEMBER' && targetLoan.borrowerId) {
+        const mem = members.find(m => m.id === targetLoan.borrowerId);
+        if (mem) {
+          await supabase
+            .from('members')
+            .update({ active_loan_amount: Math.max(0, mem.activeLoanAmount - paidPrincipalDelta) })
+            .eq('id', targetLoan.borrowerId);
+        }
+      }
     }
   };
 
-  // Auth & Profile methods
+  const markReminderSent = async (notificationId: string) => {
+    if (!sentReminderIds.includes(notificationId)) {
+      setSentReminderIds(prev => [...prev, notificationId]);
+
+      if (isSupabaseConfigured) {
+        const notif = notifications.find(n => n.id === notificationId);
+        if (notif) {
+          await supabase.from('notifications_log').insert([{
+            loan_id: notif.loanId,
+            recipient_name: notif.borrowerName,
+            recipient_phone: notif.borrowerPhone,
+            message_khmer: notif.smsMessageKhmer,
+            channel: 'SMS',
+            status: 'DELIVERED'
+          }]);
+        }
+      }
+    }
+  };
+
+  const updateMemberProfile = async (memberId: string, updatedData: Partial<Member>) => {
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        const updated = { ...m, ...updatedData };
+        if (currentUser?.id === memberId) {
+          setCurrentUser(updated);
+        }
+        return updated;
+      }
+      return m;
+    }));
+
+    if (isSupabaseConfigured) {
+      await supabase
+        .from('members')
+        .update(mapMemberToRow(updatedData))
+        .eq('id', memberId);
+    }
+  };
+
   const login = (phoneOrCode: string, pin?: string): boolean => {
     const cleanSearch = phoneOrCode.replace(/\s+/g, '').toLowerCase();
     const found = members.find(m => {
@@ -423,33 +683,25 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(null);
   };
 
-  const updateMemberProfile = (memberId: string, updatedData: Partial<Member>) => {
-    setMembers(prev => prev.map(m => {
-      if (m.id === memberId) {
-        const updated = { ...m, ...updatedData };
-        if (currentUser?.id === memberId) {
-          setCurrentUser(updated);
-        }
-        return updated;
-      }
-      return m;
-    }));
+  const supabaseSignOut = async () => {
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut();
+    }
+    setSupabaseUser(null);
+    setSupabaseSession(null);
   };
 
-  // Reset demo data
-  const resetToDefaultData = () => {
-    localStorage.removeItem(`${STORAGE_KEY}_members`);
-    localStorage.removeItem(`${STORAGE_KEY}_savings`);
-    localStorage.removeItem(`${STORAGE_KEY}_loans`);
-    localStorage.removeItem(`${STORAGE_KEY}_applications`);
-    localStorage.removeItem(`${STORAGE_KEY}_sent_reminders`);
-    localStorage.removeItem(`${STORAGE_KEY}_current_user`);
+  const resetToDefaultData = async () => {
     setMembers(INITIAL_MEMBERS);
     setSavingsRecords(INITIAL_SAVINGS_RECORDS);
     setLoans(INITIAL_LOANS);
     setApplications(INITIAL_APPLICATIONS);
     setSentReminderIds([]);
     setCurrentUser(INITIAL_MEMBERS[0]);
+
+    if (isSupabaseConfigured) {
+      await seedInitialDataToSupabase();
+    }
   };
 
   return (
@@ -469,11 +721,17 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       selectedMemberForDetail,
       setSelectedMemberForDetail,
       currentUser,
+      supabaseSession,
+      supabaseUser,
+      isSupabaseConfigured,
+      isLoadingData,
+      supabaseError,
       isLoginModalOpen,
       setIsLoginModalOpen,
       login,
       quickLoginAsMember,
       logout,
+      supabaseSignOut,
       updateMemberProfile,
       addMember,
       updateMember,
@@ -483,6 +741,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rejectLoanApplication,
       recordLoanRepayment,
       markReminderSent,
+      refreshData: fetchDataFromSupabase,
       resetToDefaultData
     }}>
       {children}
