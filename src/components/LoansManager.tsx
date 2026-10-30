@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useClub } from '../context/ClubContext';
-import { Loan, BorrowerType, LoanStatus } from '../types';
+import { Loan, BorrowerType, LoanStatus, LoanPayment } from '../types';
 import { 
   HandCoins, 
   Search, 
@@ -14,7 +14,13 @@ import {
   UserCheck, 
   UserMinus,
   ArrowRight,
-  Download
+  Download,
+  DollarSign,
+  History,
+  Trash2,
+  Printer,
+  X,
+  Receipt
 } from 'lucide-react';
 import { LoanScheduleModal } from './LoanScheduleModal';
 import { LoanContractModal } from './LoanContractModal';
@@ -24,16 +30,26 @@ export const LoansManager: React.FC = () => {
   const { 
     loans, 
     members,
+    payments,
     setCurrentTab, 
     selectedLoanForSchedule, 
     setSelectedLoanForSchedule,
     selectedLoanForContract,
-    setSelectedLoanForContract 
+    setSelectedLoanForContract,
+    setIsRepaymentModalOpen,
+    setPreselectedLoanForRepayment,
+    setSelectedReceiptForPrint,
+    voidLoanPayment
   } = useClub();
 
   const [borrowerFilter, setBorrowerFilter] = useState<'ALL' | 'MEMBER' | 'EXTERNAL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | LoanStatus>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Payment History Modal state
+  const [selectedLoanForHistory, setSelectedLoanForHistory] = useState<Loan | null>(null);
+  const [voidingPaymentId, setVoidingPaymentId] = useState<string | null>(null);
+  const [isVoiding, setIsVoiding] = useState<boolean>(false);
 
   const filteredLoans = loans.filter(loan => {
     const matchesBorrower = borrowerFilter === 'ALL' || loan.borrowerType === borrowerFilter;
@@ -47,6 +63,27 @@ export const LoansManager: React.FC = () => {
   const totalPrincipal = loans.reduce((sum, l) => sum + l.principalAmount, 0);
   const totalRemaining = loans.reduce((sum, l) => sum + l.remainingBalance, 0);
   const totalInterestCollected = loans.reduce((sum, l) => sum + l.totalPaidInterest, 0);
+
+  const handleVoidPayment = async (payment: LoanPayment) => {
+    const confirmMsg = `តើអ្នកប្រាកដជាចង់មោឃភាព (Void) ការបង់ប្រាក់លេខវិក្កយបត្រ "${payment.receiptNumber}" នេះមែនទេ? \n\nប្រាក់ដែលបានបង់ដើម $${payment.principalPaid} និងការប្រាក់ $${payment.interestPaid} នឹងត្រូវបង្វិលចូលសមតុល្យជំពាក់ដើមវិញ ហើយស្ថានភាពកាលវិភាគបង់ប្រាក់លើកទី #${payment.installmentNumber} នឹងត្រូវស្តារឡើងវិញទៅ 'រង់ចាំបង់'។`;
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    setVoidingPaymentId(payment.id);
+    setIsVoiding(true);
+
+    try {
+      const success = await voidLoanPayment(payment.id);
+      if (success) {
+        alert(`បានមោឃភាពការបង់ប្រាក់លេខវិក្កយបត្រ ${payment.receiptNumber} ដោយជោគជ័យ!`);
+      }
+    } catch (err: any) {
+      alert(`បរាជ័យក្នុងការមោឃភាព៖ ${err.message}`);
+    } finally {
+      setIsVoiding(false);
+      setVoidingPaymentId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -70,6 +107,17 @@ export const LoansManager: React.FC = () => {
           >
             <Download className="w-4 h-4 text-emerald-600" />
             <span>ទាញយក CSV</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setPreselectedLoanForRepayment(null);
+              setIsRepaymentModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-xs cursor-pointer whitespace-nowrap"
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>កត់ត្រាការបង់ប្រាក់</span>
           </button>
 
           <button
@@ -272,19 +320,42 @@ export const LoansManager: React.FC = () => {
 
                     <td className="py-3 px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {loan.status !== 'COMPLETED' && (
+                          <button
+                            onClick={() => {
+                              setPreselectedLoanForRepayment({ loanId: loan.id });
+                              setIsRepaymentModalOpen(true);
+                            }}
+                            title="កត់ត្រាការបង់ប្រាក់កម្ចី"
+                            className="px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>បង់ប្រាក់</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => setSelectedLoanForHistory(loan)}
+                          title="មើលប្រវត្តិការបង់ប្រាក់"
+                          className="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <History className="w-3.5 h-3.5 text-slate-600" />
+                          <span>ប្រវត្តិ</span>
+                        </button>
+
                         <button
                           onClick={() => setSelectedLoanForSchedule(loan)}
                           title="មើលតារាងបង់ប្រាក់ប្រចាំខែ"
-                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                          className="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
                         >
                           <FileSpreadsheet className="w-3.5 h-3.5 text-slate-600" />
-                          <span>តារាងបង់</span>
+                          <span>តារាង</span>
                         </button>
 
                         <button
                           onClick={() => setSelectedLoanForContract(loan)}
                           title="មើលកិច្ចសន្យាខ្ចីប្រាក់ផ្លូវការ"
-                          className="px-2.5 py-1 text-[11px] font-semibold text-white bg-[#00609C] hover:bg-[#004f80] rounded transition-colors flex items-center gap-1 cursor-pointer"
+                          className="px-2 py-1 text-[11px] font-semibold text-white bg-[#00609C] hover:bg-[#004f80] rounded transition-colors flex items-center gap-1 cursor-pointer"
                         >
                           <FileText className="w-3.5 h-3.5" />
                           <span>កិច្ចសន្យា</span>
@@ -298,6 +369,131 @@ export const LoansManager: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Payment History Modal for a specific loan */}
+      {selectedLoanForHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 space-y-5">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#00609C] flex items-center justify-center font-bold">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    ប្រវត្តិការបង់ប្រាក់កម្ចី (Payment History)
+                  </h2>
+                  <p className="text-xs text-slate-500 font-mono">
+                    កូដកម្ចី៖ {selectedLoanForHistory.loanCode} · អ្នកខ្ចី៖ {selectedLoanForHistory.borrowerName} ({selectedLoanForHistory.borrowerPhone})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedLoanForHistory(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Loan Payment History Table */}
+            {(() => {
+              const loanPayments = payments.filter(p => p.loanId === selectedLoanForHistory.id);
+              if (loanPayments.length === 0) {
+                return (
+                  <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                    មិនទាន់មានប្រវត្តិបង់ប្រាក់សម្រាប់កម្ចីនេះនៅឡើយទេ។
+                  </div>
+                );
+              }
+
+              return (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
+                      <tr>
+                        <th className="py-2.5 px-3 font-semibold">លេខវិក្កយបត្រ</th>
+                        <th className="py-2.5 px-3 font-semibold">កាលបរិច្ឆេទ</th>
+                        <th className="py-2.5 px-3 font-semibold text-center">លើកទី</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">ប្រាក់ដើម ($)</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">ការប្រាក់ ($)</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">ថ្លៃពិន័យ ($)</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">សរុបបានបង់ ($)</th>
+                        <th className="py-2.5 px-3 font-semibold text-center">វិធីសាស្ត្រ</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">សកម្មភាព</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {loanPayments.map((p) => (
+                        <tr key={p.id} className="hover:bg-slate-50/70 font-mono">
+                          <td className="py-2.5 px-3 font-bold text-[#00609C]">
+                            {p.receiptNumber}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-800">
+                            {p.paymentDate}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-bold text-slate-700">
+                            #{p.installmentNumber || 1}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-900">
+                            ${p.principalPaid.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-emerald-700">
+                            ${p.interestPaid.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-amber-800">
+                            ${p.lateFee.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                            ${p.amountPaid.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-800">
+                              {p.paymentMethod}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => setSelectedReceiptForPrint({ payment: p, loan: selectedLoanForHistory })}
+                                title="មើលនិងបោះពុម្ពវិក្កយបត្រ"
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>វិក្កយបត្រ</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleVoidPayment(p)}
+                                disabled={isVoiding && voidingPaymentId === p.id}
+                                title="មោឃភាពការបង់ប្រាក់នេះ (Void)"
+                                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                              >
+                                <Trash2 className="w-3 h-3 text-rose-600" />
+                                <span>មោឃភាព</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setSelectedLoanForHistory(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                បិទផ្ទាំង
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Amortization Schedule Modal */}
       {selectedLoanForSchedule && (
@@ -321,3 +517,4 @@ export const LoansManager: React.FC = () => {
     </div>
   );
 };
+

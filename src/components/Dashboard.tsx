@@ -31,6 +31,7 @@ export const Dashboard: React.FC = () => {
     savingsRecords,
     currentUser,
     setIsLoginModalOpen,
+    setIsRepaymentModalOpen,
     setSelectedMemberForDetail
   } = useClub();
 
@@ -62,15 +63,22 @@ export const Dashboard: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2.5">
             <button
+              onClick={() => setIsRepaymentModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors whitespace-nowrap cursor-pointer"
+            >
+              <HandCoins className="w-4 h-4" />
+              <span>កត់ត្រាការបង់ប្រាក់កម្ចី</span>
+            </button>
+            <button
               onClick={() => setCurrentTab('savings')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-[#00609C] bg-white hover:bg-slate-50 rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-[#00609C] bg-white hover:bg-slate-50 rounded-xl shadow-sm transition-colors whitespace-nowrap cursor-pointer"
             >
               <PiggyBank className="w-4 h-4 text-[#F15A24]" />
               <span>កត់ត្រាប្រាក់សន្សំ</span>
             </button>
             <button
               onClick={() => setCurrentTab('applications')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-[#F15A24] hover:bg-[#d94814] rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-[#F15A24] hover:bg-[#d94814] rounded-xl shadow-sm transition-colors whitespace-nowrap cursor-pointer"
             >
               <HandCoins className="w-4 h-4" />
               <span>ស្នើសុំកម្ចីថ្មី</span>

@@ -8,6 +8,8 @@ export type RepaymentStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'PARTIAL';
 
 export type InterestMethod = 'FLAT' | 'DECLINING' | 'INTEREST_ONLY';
 
+export type PaymentMethod = 'CASH' | 'ABA_PAY' | 'WING' | 'OTHER' | 'AC_LEDA';
+
 export interface Member {
   id: string;
   memberCode: string; // e.g. "TB-001"
@@ -45,6 +47,7 @@ export interface MonthlySavingRecord {
 }
 
 export interface RepaymentScheduleItem {
+  id?: string;
   installmentNumber: number;
   dueDate: string;
   beginningBalance: number;
@@ -69,8 +72,8 @@ export interface Loan {
   borrowerAddress: string;
   occupation?: string;
   principalAmount: number;
-  monthlyInterestRate: number; // in percent (editable)
-  interestMethod: InterestMethod; // 'FLAT' | 'DECLINING' | 'INTEREST_ONLY'
+  monthlyInterestRate: number; // in percent
+  interestMethod: InterestMethod;
   termMonths: number;
   startDate: string;
   endDate: string;
@@ -91,6 +94,23 @@ export interface Loan {
   createdAt: string;
 }
 
+export interface LoanPayment {
+  id: string;
+  loanId: string;
+  scheduleId?: string;
+  installmentNumber?: number;
+  paymentDate: string; // YYYY-MM-DD
+  amountPaid: number;
+  principalPaid: number;
+  interestPaid: number;
+  lateFee: number;
+  paymentMethod: PaymentMethod;
+  receiptNumber: string;
+  recordedBy: string;
+  notes?: string;
+  createdAt?: string;
+}
+
 export interface LoanApplication {
   id: string;
   applicantType: BorrowerType;
@@ -101,7 +121,7 @@ export interface LoanApplication {
   applicantAddress: string;
   occupation: string;
   requestedAmount: number;
-  proposedInterestRate: number; // user typed rate
+  proposedInterestRate: number;
   interestMethod: InterestMethod;
   proposedTermMonths: number;
   purpose: string;

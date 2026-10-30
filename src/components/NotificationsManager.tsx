@@ -10,11 +10,21 @@ import {
   Clock, 
   PhoneCall, 
   Smartphone,
-  ExternalLink
+  ExternalLink,
+  DollarSign
 } from 'lucide-react';
 
 export const NotificationsManager: React.FC = () => {
-  const { notifications, markReminderSent, loans, setSelectedLoanForSchedule, setCurrentTab } = useClub();
+  const { 
+    notifications, 
+    markReminderSent, 
+    loans, 
+    setSelectedLoanForSchedule, 
+    setCurrentTab,
+    setIsRepaymentModalOpen,
+    setPreselectedLoanForRepayment
+  } = useClub();
+
   const [filter, setFilter] = useState<'ALL' | 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING'>('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -91,7 +101,7 @@ export const NotificationsManager: React.FC = () => {
       <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 flex items-start gap-3">
         <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
         <div className="leading-relaxed">
-          <strong>របៀបប្រើប្រាស់៖</strong> ប្រព័ន្ធនឹងពិនិត្យកាលវិភាគសងកម្ចីរៀងរាល់ថ្ងៃ។ អ្នកគ្រប់គ្រងអាចចុច <strong>«ចម្លងសារ»</strong> ដើម្បីផ្ញើតាម Telegram/Messenger ឬចុច <strong>«ផ្ញើតាម SMS»</strong> ដើម្បីបើកកម្មវិធីផ្ញើសារទូរស័ព្ទដោយផ្ទាល់ទៅកាន់លេខទូរស័ព្ទរបស់អ្នកខ្ចី។
+          <strong>របៀបប្រើប្រាស់៖</strong> ប្រព័ន្ធនឹងពិនិត្យកាលវិភាគសងកម្ចីរៀងរាល់ថ្ងៃ។ អ្នកគ្រប់គ្រងអាចចុច <strong>«ចម្លងសារ»</strong> ដើម្បីផ្ញើតាម Telegram/Messenger ឬចុច <strong>«កត់ត្រាការបង់ប្រាក់»</strong> នៅពេលទទួលបានការផ្ទេរប្រាក់។
         </div>
       </div>
 
@@ -178,7 +188,22 @@ export const NotificationsManager: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Record Repayment Button */}
+                    <button
+                      onClick={() => {
+                        setPreselectedLoanForRepayment({
+                          loanId: notif.loanId,
+                          installmentNumber: notif.installmentNumber
+                        });
+                        setIsRepaymentModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                    >
+                      <DollarSign className="w-3.5 h-3.5" />
+                      <span>កត់ត្រាការបង់ប្រាក់</span>
+                    </button>
+
                     <button
                       onClick={() => handleCopySMS(notif.id, notif.smsMessageKhmer)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
@@ -201,7 +226,7 @@ export const NotificationsManager: React.FC = () => {
                       className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-[#00609C] hover:bg-[#004f80] rounded-lg shadow-xs transition-colors cursor-pointer"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>ផ្ញើតាម SMS (ទូរស័ព្ទ)</span>
+                      <span>ផ្ញើតាម SMS</span>
                     </button>
                   </div>
                 </div>

@@ -25,16 +25,12 @@ export const LoanScheduleModal: React.FC<LoanScheduleModalProps> = ({
   onClose,
   onOpenContract 
 }) => {
-  const { recordLoanRepayment } = useClub();
-  const [payingInstallmentNum, setPayingInstallmentNum] = useState<number | null>(null);
-  const [receiptNumber, setReceiptNumber] = useState(`RCT-${Math.floor(100000 + Math.random() * 900000)}`);
-  const [paidDate, setPaidDate] = useState('2026-10-27');
-
-  const handleConfirmPayment = (installmentNumber: number) => {
-    recordLoanRepayment(loan.id, installmentNumber, receiptNumber);
-    setPayingInstallmentNum(null);
-    setReceiptNumber(`RCT-${Math.floor(100000 + Math.random() * 900000)}`);
-  };
+  const { 
+    payments,
+    setIsRepaymentModalOpen, 
+    setPreselectedLoanForRepayment, 
+    setSelectedReceiptForPrint 
+  } = useClub();
 
   const handlePrint = () => {
     window.print();
@@ -224,12 +220,32 @@ export const LoanScheduleModal: React.FC<LoanScheduleModalProps> = ({
                     </td>
                     <td className="py-2.5 px-3 text-right no-print">
                       {item.status === 'PAID' ? (
-                        <span className="text-[10px] text-slate-500 font-mono">
-                          បង់: {item.paidDate} ({item.receiptNumber})
-                        </span>
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {item.paidDate} ({item.receiptNumber})
+                          </span>
+                          {(() => {
+                            const foundP = payments.find(p => p.loanId === loan.id && (p.scheduleId === item.id || p.installmentNumber === item.installmentNumber));
+                            if (foundP) {
+                              return (
+                                <button
+                                  onClick={() => setSelectedReceiptForPrint({ payment: foundP, loan })}
+                                  className="px-1.5 py-0.5 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold cursor-pointer"
+                                  title="មើលនិងបោះពុម្ពវិក្កយបត្រ"
+                                >
+                                  វិក្កយបត្រ
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                       ) : (
                         <button
-                          onClick={() => setPayingInstallmentNum(item.installmentNumber)}
+                          onClick={() => {
+                            setPreselectedLoanForRepayment({ loanId: loan.id, installmentNumber: item.installmentNumber });
+                            setIsRepaymentModalOpen(true);
+                          }}
                           className="px-2.5 py-1 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded transition-colors cursor-pointer"
                         >
                           កត់ត្រាបានបង់
@@ -242,67 +258,6 @@ export const LoanScheduleModal: React.FC<LoanScheduleModalProps> = ({
             </table>
           </div>
         </div>
-
-        {/* Modal for Recording Single Installment Payment */}
-        {payingInstallmentNum !== null && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60">
-            <div className="bg-white rounded-xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-300">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Receipt className="w-4 h-4 text-emerald-600" />
-                  <span>កត់ត្រាការបង់កម្ចីលើកទី #{payingInstallmentNum}</span>
-                </h3>
-                <button
-                  onClick={() => setPayingInstallmentNum(null)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block text-slate-600 mb-1">លេខកូដបង្កាន់ដៃបង់ប្រាក់ (Receipt No.)</label>
-                  <input
-                    type="text"
-                    value={receiptNumber}
-                    onChange={(e) => setReceiptNumber(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono text-xs focus:outline-none focus:border-[#00609C]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-600 mb-1">កាលបរិច្ឆេទជាក់ស្តែង</label>
-                  <input
-                    type="date"
-                    value={paidDate}
-                    onChange={(e) => setPaidDate(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:border-[#00609C]"
-                  />
-                </div>
-
-                <div className="p-2.5 bg-slate-50 rounded border border-slate-200 text-slate-600">
-                  ប្រាក់ដើមនិងការប្រាក់នឹងត្រូវកត់ត្រាចូលបេឡាសមាគម និងកាត់បន្ថយសមតុល្យជំពាក់របស់ {loan.borrowerName}។
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    onClick={() => setPayingInstallmentNum(null)}
-                    className="px-3 py-1.5 text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 rounded font-medium cursor-pointer"
-                  >
-                    បោះបង់
-                  </button>
-                  <button
-                    onClick={() => handleConfirmPayment(payingInstallmentNum)}
-                    className="px-3 py-1.5 text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded font-semibold cursor-pointer"
-                  >
-                    បញ្ជាក់ការទទួលប្រាក់
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Footer info for print */}
         <div className="hidden print:grid grid-cols-3 gap-6 pt-12 text-center text-xs">

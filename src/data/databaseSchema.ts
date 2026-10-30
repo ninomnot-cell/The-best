@@ -106,20 +106,25 @@ export const DATABASE_SCHEMA_TABLES: SchemaTable[] = [
     indexes: ['CREATE INDEX idx_schedule_loan_id ON loan_repayment_schedules(loan_id);', 'CREATE INDEX idx_schedule_due_date ON loan_repayment_schedules(due_date, status);']
   },
   {
-    tableName: 'notifications_log',
-    tableNameKhmer: 'តារាងកំណត់ត្រាជូនដំណឹង និងសារ SMS (Notifications & Reminders)',
-    descriptionKhmer: 'រក្សាទុកប្រវត្តិសាររំលឹកកាលបរិច្ឆេទសងដល់អ្នកខ្ចីតាម In-App និង SMS/Telegram',
+    tableName: 'loan_payments',
+    tableNameKhmer: 'តារាងប្រវត្តិការបង់ប្រាក់កម្ចី (Loan Payment Records)',
+    descriptionKhmer: 'កត់ត្រារាល់ប្រតិបត្តិការសងប្រាក់ដើម ការប្រាក់ ថ្លៃពិន័យយឺតយ៉ាវ និងលេខវិក្កយបត្រ',
     columns: [
-      { name: 'id', type: 'UUID', nullable: false, isPrimary: true, descriptionKhmer: 'លេខសម្គាល់សារ', descriptionEnglish: 'Notification ID' },
-      { name: 'loan_id', type: 'UUID', nullable: false, isForeign: true, references: 'loans(id)', descriptionKhmer: 'ភ្ជាប់ទៅកម្ចី', descriptionEnglish: 'Loan ID' },
-      { name: 'recipient_name', type: 'VARCHAR(100)', nullable: false, descriptionKhmer: 'ឈ្មោះអ្នកទទួលសារ', descriptionEnglish: 'Recipient name' },
-      { name: 'recipient_phone', type: 'VARCHAR(25)', nullable: false, descriptionKhmer: 'លេខទូរស័ព្ទទទួលសារ', descriptionEnglish: 'Recipient phone' },
-      { name: 'message_khmer', type: 'TEXT', nullable: false, descriptionKhmer: 'ខ្លឹមសារសារជាភាសាខ្មែរ', descriptionEnglish: 'Khmer reminder message content' },
-      { name: 'channel', type: 'VARCHAR(20)', nullable: false, descriptionKhmer: 'មធ្យោបាយ: SMS, TELEGRAM, IN_APP', descriptionEnglish: 'Channel used' },
-      { name: 'sent_at', type: 'TIMESTAMP WITH TIME ZONE', nullable: false, descriptionKhmer: 'កាលបរិច្ឆេទនិងម៉ោងផ្ញើ', descriptionEnglish: 'Sent timestamp' },
-      { name: 'status', type: 'VARCHAR(20)', nullable: false, descriptionKhmer: 'ស្ថានភាពផ្ញើ: DELIVERED, PENDING, FAILED', descriptionEnglish: 'Delivery status' },
+      { name: 'id', type: 'UUID', nullable: false, isPrimary: true, descriptionKhmer: 'លេខសម្គាល់ប្រតិបត្តិការបង់ប្រាក់', descriptionEnglish: 'Payment ID' },
+      { name: 'loan_id', type: 'UUID', nullable: false, isForeign: true, references: 'loans(id)', descriptionKhmer: 'ភ្ជាប់ទៅកម្ចីណា', descriptionEnglish: 'Reference to loan' },
+      { name: 'schedule_id', type: 'UUID', nullable: true, isForeign: true, references: 'loan_repayment_schedules(id)', descriptionKhmer: 'ភ្ជាប់ទៅកាលវិភាគបង់', descriptionEnglish: 'Reference to schedule row' },
+      { name: 'installment_number', type: 'INTEGER', nullable: true, descriptionKhmer: 'លើកទីនៃការបង់', descriptionEnglish: 'Installment index' },
+      { name: 'payment_date', type: 'DATE', nullable: false, descriptionKhmer: 'កាលបរិច្ឆេទបង់ប្រាក់', descriptionEnglish: 'Payment date' },
+      { name: 'amount_paid', type: 'DECIMAL(14,2)', nullable: false, descriptionKhmer: 'ចំនួនប្រាក់បង់សរុប ($)', descriptionEnglish: 'Total amount paid' },
+      { name: 'principal_paid', type: 'DECIMAL(14,2)', nullable: false, descriptionKhmer: 'ប្រាក់ដើមដែលបានបង់ ($)', descriptionEnglish: 'Principal portion paid' },
+      { name: 'interest_paid', type: 'DECIMAL(14,2)', nullable: false, descriptionKhmer: 'ការប្រាក់ដែលបានបង់ ($)', descriptionEnglish: 'Interest portion paid' },
+      { name: 'late_fee', type: 'DECIMAL(12,2)', nullable: false, descriptionKhmer: 'ថ្លៃពិន័យបង់យឺត ($)', descriptionEnglish: 'Late penalty fee' },
+      { name: 'payment_method', type: 'VARCHAR(30)', nullable: false, descriptionKhmer: 'វិធីសាស្ត្របង់ (CASH, ABA_PAY, WING, OTHER)', descriptionEnglish: 'Method of payment' },
+      { name: 'receipt_number', type: 'VARCHAR(100)', nullable: false, descriptionKhmer: 'លេខវិក្កយបត្រ (Unique RC-YYYYMMDD-001)', descriptionEnglish: 'Unique receipt serial' },
+      { name: 'recorded_by', type: 'VARCHAR(150)', nullable: false, descriptionKhmer: 'ឈ្មោះ/អ៊ីមែលអ្នកកត់ត្រា', descriptionEnglish: 'Logged-in user email' },
+      { name: 'notes', type: 'TEXT', nullable: true, descriptionKhmer: 'កំណត់សម្គាល់បន្ថែម', descriptionEnglish: 'Remarks' },
     ],
-    indexes: ['CREATE INDEX idx_notif_loan ON notifications_log(loan_id);', 'CREATE INDEX idx_notif_sent_at ON notifications_log(sent_at);']
+    indexes: ['CREATE UNIQUE INDEX idx_payments_receipt ON loan_payments(receipt_number);', 'CREATE INDEX idx_payments_loan ON loan_payments(loan_id);']
   },
   {
     tableName: 'loan_applications',
@@ -131,11 +136,11 @@ export const DATABASE_SCHEMA_TABLES: SchemaTable[] = [
       { name: 'applicant_name', type: 'VARCHAR(100)', nullable: false, descriptionKhmer: 'ឈ្មោះអ្នកស្នើសុំ', descriptionEnglish: 'Applicant name' },
       { name: 'applicant_phone', type: 'VARCHAR(25)', nullable: false, descriptionKhmer: 'លេខទូរស័ព្ទ', descriptionEnglish: 'Applicant phone' },
       { name: 'requested_amount', type: 'DECIMAL(14,2)', nullable: false, descriptionKhmer: 'ចំនួនទឹកប្រាក់ស្នើសុំ ($)', descriptionEnglish: 'Requested amount ($)' },
-      { name: 'proposed_interest_rate', type: 'DECIMAL(5,2)', nullable: false, descriptionKhmer: 'អត្រាការប្រាក់ស្នើសុំ (%/ខែ)', descriptionEnglish: 'Proposed interest rate' },
-      { name: 'interest_method', type: 'VARCHAR(30)', nullable: false, descriptionKhmer: 'វិធីសាស្ត្រគណនា: FLAT, DECLINING, INTEREST_ONLY', descriptionEnglish: 'Calculation method' },
       { name: 'proposed_term_months', type: 'INTEGER', nullable: false, descriptionKhmer: 'រយៈពេលស្នើសុំ (ខែ)', descriptionEnglish: 'Proposed term in months' },
       { name: 'purpose', type: 'TEXT', nullable: false, descriptionKhmer: 'គោលបំណងនៃការប្រើប្រាស់ប្រាក់', descriptionEnglish: 'Reason for loan' },
       { name: 'collateral_description', type: 'TEXT', nullable: true, descriptionKhmer: 'ឯកសារទ្រព្យធានា', descriptionEnglish: 'Collateral info' },
+      { name: 'guarantor_name', type: 'VARCHAR(100)', nullable: true, descriptionKhmer: 'ឈ្មោះអ្នកធានា', descriptionEnglish: 'Guarantor name' },
+      { name: 'guarantor_phone', type: 'VARCHAR(25)', nullable: true, descriptionKhmer: 'លេខទូរស័ព្ទអ្នកធានា', descriptionEnglish: 'Guarantor phone' },
       { name: 'status', type: 'VARCHAR(20)', nullable: false, descriptionKhmer: 'ស្ថានភាព: PENDING, APPROVED, REJECTED', descriptionEnglish: 'Application review status' },
       { name: 'applied_date', type: 'DATE', nullable: false, descriptionKhmer: 'កាលបរិច្ឆេទដាក់ពាក្យ', descriptionEnglish: 'Application submission date' },
     ],
@@ -219,14 +224,32 @@ CREATE TABLE IF NOT EXISTS loan_repayment_schedules (
     interest_amount DECIMAL(14,2) NOT NULL,
     total_due DECIMAL(14,2) NOT NULL,
     ending_balance DECIMAL(14,2) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PAID', 'OVERDUE')),
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PAID', 'OVERDUE', 'PARTIAL')),
     paid_date DATE,
     receipt_number VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_loan_installment UNIQUE (loan_id, installment_number)
 );
 
--- 5. Create Loan Applications Table (តារាងពាក្យស្នើសុំកម្ចី)
+-- 5. Create Loan Payments Table (តារាងកំណត់ត្រាប្រតិបត្តិការបង់ប្រាក់កម្ចី)
+CREATE TABLE IF NOT EXISTS loan_payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    loan_id UUID NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
+    schedule_id UUID REFERENCES loan_repayment_schedules(id) ON DELETE SET NULL,
+    installment_number INT,
+    payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    amount_paid DECIMAL(14,2) NOT NULL CHECK (amount_paid > 0),
+    principal_paid DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    interest_paid DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    late_fee DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    payment_method VARCHAR(30) NOT NULL DEFAULT 'CASH',
+    receipt_number VARCHAR(100) UNIQUE NOT NULL,
+    recorded_by VARCHAR(150) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Create Loan Applications Table (តារាងពាក្យស្នើសុំកម្ចី)
 CREATE TABLE IF NOT EXISTS loan_applications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     applicant_type VARCHAR(20) NOT NULL CHECK (applicant_type IN ('MEMBER', 'EXTERNAL')),
@@ -243,7 +266,7 @@ CREATE TABLE IF NOT EXISTS loan_applications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. Create Notifications & SMS Log Table (តារាងប្រវត្តិសាររំលឹក)
+-- 7. Create Notifications & SMS Log Table (តារាងប្រវត្តិសាររំលឹក)
 CREATE TABLE IF NOT EXISTS notifications_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     loan_id UUID REFERENCES loans(id) ON DELETE SET NULL,
@@ -261,4 +284,5 @@ CREATE INDEX IF NOT EXISTS idx_savings_member_date ON monthly_savings(member_id,
 CREATE INDEX IF NOT EXISTS idx_loans_borrower_type ON loans(borrower_type);
 CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 CREATE INDEX IF NOT EXISTS idx_schedules_due_date ON loan_repayment_schedules(due_date, status);
+CREATE INDEX IF NOT EXISTS idx_payments_loan ON loan_payments(loan_id);
 `;

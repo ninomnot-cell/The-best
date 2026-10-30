@@ -5,7 +5,8 @@ import {
   Loan, 
   LoanApplication, 
   NotificationReminder, 
-  ClubStats 
+  ClubStats,
+  LoanPayment
 } from '../types';
 import { 
   INITIAL_MEMBERS, 
@@ -27,7 +28,9 @@ import {
   mapLoanToRow,
   mapScheduleToRow,
   mapApplicationFromRow,
-  mapApplicationToRow
+  mapApplicationToRow,
+  mapLoanPaymentFromRow,
+  mapLoanPaymentToRow
 } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
 
@@ -36,6 +39,7 @@ interface ClubContextType {
   savingsRecords: MonthlySavingRecord[];
   loans: Loan[];
   applications: LoanApplication[];
+  payments: LoanPayment[];
   notifications: NotificationReminder[];
   stats: ClubStats;
   currentTab: string;
@@ -47,6 +51,14 @@ interface ClubContextType {
   selectedMemberForDetail: Member | null;
   setSelectedMemberForDetail: (member: Member | null) => void;
   
+  // Repayment Modal & Print State
+  isRepaymentModalOpen: boolean;
+  setIsRepaymentModalOpen: (open: boolean) => void;
+  preselectedLoanForRepayment: { loanId: string; installmentNumber?: number } | null;
+  setPreselectedLoanForRepayment: (data: { loanId: string; installmentNumber?: number } | null) => void;
+  selectedReceiptForPrint: { payment: LoanPayment; loan: Loan } | null;
+  setSelectedReceiptForPrint: (data: { payment: LoanPayment; loan: Loan } | null) => void;
+
   // Auth & Session
   currentUser: Member | null;
   supabaseSession: Session | null;
@@ -70,7 +82,8 @@ interface ClubContextType {
   submitLoanApplication: (app: Omit<LoanApplication, 'id' | 'status' | 'appliedDate'>) => Promise<void>;
   approveLoanApplication: (applicationId: string, customInterestRate?: number, customMethod?: import('../types').InterestMethod) => Promise<void>;
   rejectLoanApplication: (applicationId: string) => Promise<void>;
-  recordLoanRepayment: (loanId: string, installmentNumber: number, receiptNumber: string, paidAmount?: number) => Promise<void>;
+  recordLoanPaymentTransaction: (paymentData: Omit<LoanPayment, 'id'>) => Promise<boolean>;
+  voidLoanPayment: (paymentId: string) => Promise<boolean>;
   markReminderSent: (notificationId: string) => Promise<void>;
   refreshData: () => Promise<void>;
   resetToDefaultData: () => Promise<void>;
@@ -90,6 +103,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [savingsRecords, setSavingsRecords] = useState<MonthlySavingRecord[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [applications, setApplications] = useState<LoanApplication[]>([]);
+  const [payments, setPayments] = useState<LoanPayment[]>([]);
   const [sentReminderIds, setSentReminderIds] = useState<string[]>([]);
   
   const [supabaseSession, setSupabaseSession] = useState<Session | null>(null);
@@ -104,6 +118,11 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedLoanForSchedule, setSelectedLoanForSchedule] = useState<Loan | null>(null);
   const [selectedLoanForContract, setSelectedLoanForContract] = useState<Loan | null>(null);
   const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<Member | null>(null);
+
+  // Repayment Modal & Print Receipts State
+  const [isRepaymentModalOpen, setIsRepaymentModalOpen] = useState<boolean>(false);
+  const [preselectedLoanForRepayment, setPreselectedLoanForRepayment] = useState<{ loanId: string; installmentNumber?: number } | null>(null);
+  const [selectedReceiptForPrint, setSelectedReceiptForPrint] = useState<{ payment: LoanPayment; loan: Loan } | null>(null);
 
   // 1. Listen for Supabase Auth changes
   useEffect(() => {
@@ -202,7 +221,17 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const mappedLoans = (loanRows || []).map(l => mapLoanFromRow(l, scheduleMap[String(l.id)] || []));
       setLoans(mappedLoans);
 
-      // 4. Loan Applications
+      // 4. Loan Payments (Repayment History)
+      const { data: paymentRows, error: payErr } = await supabase
+        .from('loan_payments')
+        .select('*')
+        .order('payment_date', { ascending: false });
+
+      if (!payErr && paymentRows) {
+        setPayments(paymentRows.map(mapLoanPaymentFromRow));
+      }
+
+      // 5. Loan Applications
       const { data: appRows, error: appErr } = await supabase
         .from('loan_applications')
         .select('*')
@@ -212,7 +241,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setApplications(appRows.map(mapApplicationFromRow));
       }
 
-      // 5. Notifications log
+      // 6. Notifications log
       const { data: notifRows, error: notifErr } = await supabase
         .from('notifications_log')
         .select('*');
@@ -311,7 +340,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [fetchDataFromSupabase]);
 
-  // Derived Notifications
+  // Derived Notifications (SMS Reminders)
   const notifications = useMemo(() => {
     const list: NotificationReminder[] = [];
     const today = new Date('2026-10-27');
@@ -390,7 +419,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [members, loans, notifications]);
 
-  // MUTATION ACTIONS (NO UI DISPLAY UNLESS SUPABASE CONFIRMS)
+  // MUTATION ACTIONS
 
   // 1. Add Member
   const addMember = async (data: Omit<Member, 'id' | 'memberCode' | 'totalSavings' | 'totalDividendsEarned' | 'activeLoanAmount'>) => {
@@ -591,78 +620,167 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 7. Record Loan Repayment
-  const recordLoanRepayment = async (
-    loanId: string, 
-    installmentNumber: number, 
-    receiptNumber: string,
-    paidAmount?: number
-  ) => {
-    const targetLoan = loans.find(l => l.id === loanId);
-    if (!targetLoan) return;
+  // 7. RECORD LOAN PAYMENT TRANSACTION (FULL REPAYMENT & PARTIAL SUPPORT)
+  const recordLoanPaymentTransaction = async (paymentData: Omit<LoanPayment, 'id'>): Promise<boolean> => {
+    const targetLoan = loans.find(l => l.id === paymentData.loanId);
+    if (!targetLoan) return false;
 
-    let paidPrincipalDelta = 0;
-    const updatedSchedule = targetLoan.schedule.map(item => {
-      if (item.installmentNumber === installmentNumber) {
-        paidPrincipalDelta = item.principal;
-        return {
-          ...item,
-          status: 'PAID' as const,
-          paidDate: '2026-10-27',
-          paidAmount: paidAmount || item.totalDue,
-          receiptNumber: receiptNumber
-        };
-      }
-      return item;
-    });
-
-    const newRemaining = Math.max(0, targetLoan.remainingBalance - paidPrincipalDelta);
-    const allPaid = updatedSchedule.every(item => item.status === 'PAID');
-    const hasOverdue = updatedSchedule.some(item => item.status === 'OVERDUE');
-    const newStatus = allPaid ? 'COMPLETED' : (hasOverdue ? 'OVERDUE' : 'ACTIVE');
+    const newPaymentId = crypto.randomUUID();
+    const paymentRecord: LoanPayment = {
+      ...paymentData,
+      id: newPaymentId
+    };
 
     if (isSupabaseConfigured) {
+      // 1. Insert into loan_payments table
+      const { error: payErr } = await supabase
+        .from('loan_payments')
+        .insert([mapLoanPaymentToRow(paymentRecord)]);
+
+      if (payErr) {
+        handleSupabaseError(payErr, 'Insert Loan Payment');
+        return false;
+      }
+
+      // 2. Update loan_repayment_schedules
+      const instNum = paymentData.installmentNumber || 1;
+      const targetInst = targetLoan.schedule.find(s => s.installmentNumber === instNum);
+      const fullDue = targetInst ? targetInst.totalDue : paymentData.amountPaid;
+
+      // Status: PAID if amountPaid >= totalDue, else PARTIAL
+      const isFull = paymentData.amountPaid >= fullDue;
+      const newInstStatus = isFull ? 'PAID' : 'PARTIAL';
+
       const { error: schedErr } = await supabase
         .from('loan_repayment_schedules')
         .update({
-          status: 'PAID',
-          paid_date: '2026-10-27',
-          receipt_number: receiptNumber
+          status: newInstStatus,
+          paid_date: formatDateStr(paymentData.paymentDate),
+          receipt_number: paymentData.receiptNumber
         })
-        .eq('loan_id', loanId)
-        .eq('installment_number', installmentNumber);
+        .eq('loan_id', targetLoan.id)
+        .eq('installment_number', instNum);
 
       if (schedErr) {
-        handleSupabaseError(schedErr, 'Record Repayment Schedule');
-        return;
+        handleSupabaseError(schedErr, 'Update Repayment Schedule');
       }
+
+      // 3. Re-calculate loan status & remaining balance
+      // Fetch all updated schedules for this loan
+      const { data: latestSchedules } = await supabase
+        .from('loan_repayment_schedules')
+        .select('*')
+        .eq('loan_id', targetLoan.id);
+
+      let newLoanStatus: 'ACTIVE' | 'COMPLETED' | 'OVERDUE' = 'ACTIVE';
+      let totalPaidPrincipal = 0;
+
+      if (latestSchedules && latestSchedules.length > 0) {
+        const allPaid = latestSchedules.every(s => s.status === 'PAID');
+        const todayStr = '2026-10-29';
+        const hasOverdue = latestSchedules.some(s => s.status !== 'PAID' && s.due_date < todayStr);
+
+        if (allPaid) {
+          newLoanStatus = 'COMPLETED';
+        } else if (hasOverdue) {
+          newLoanStatus = 'OVERDUE';
+        }
+
+        totalPaidPrincipal = latestSchedules
+          .filter(s => s.status === 'PAID')
+          .reduce((sum, s) => sum + Number(s.principal_amount || 0), 0);
+      }
+
+      const newRemainingBalance = Math.max(0, targetLoan.principalAmount - totalPaidPrincipal);
 
       const { error: loanErr } = await supabase
         .from('loans')
         .update({
-          status: newStatus
+          status: newLoanStatus,
+          remaining_balance: newRemainingBalance
         })
-        .eq('id', loanId);
+        .eq('id', targetLoan.id);
 
       if (loanErr) {
-        handleSupabaseError(loanErr, 'Update Loan Status');
+        handleSupabaseError(loanErr, 'Update Loan Overall Status');
       }
 
+      // Re-fetch all data from Supabase
       await fetchDataFromSupabase();
+
+      // Show Printable Receipt
+      setSelectedReceiptForPrint({
+        payment: paymentRecord,
+        loan: targetLoan
+      });
+
+      return true;
+
     } else {
-      setLoans(prevLoans => prevLoans.map(loan => {
-        if (loan.id !== loanId) return loan;
-        return {
-          ...loan,
-          remainingBalance: newRemaining,
-          status: newStatus,
-          schedule: updatedSchedule
-        };
-      }));
+      // Local fallback
+      setPayments(prev => [paymentRecord, ...prev]);
+      
+      setSelectedReceiptForPrint({
+        payment: paymentRecord,
+        loan: targetLoan
+      });
+      return true;
     }
   };
 
-  // 8. Mark Reminder Sent
+  // 8. VOID LOAN PAYMENT
+  const voidLoanPayment = async (paymentId: string): Promise<boolean> => {
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) return false;
+
+    if (isSupabaseConfigured) {
+      // 1. Delete from loan_payments
+      const { error: delErr } = await supabase
+        .from('loan_payments')
+        .delete()
+        .eq('id', paymentId);
+
+      if (delErr) {
+        handleSupabaseError(delErr, 'Void Payment Record');
+        return false;
+      }
+
+      // 2. Reset schedule item status back to PENDING (or OVERDUE)
+      if (payment.installmentNumber) {
+        const { error: schedErr } = await supabase
+          .from('loan_repayment_schedules')
+          .update({
+            status: 'PENDING',
+            paid_date: null,
+            receipt_number: null
+          })
+          .eq('loan_id', payment.loanId)
+          .eq('installment_number', payment.installmentNumber);
+
+        if (schedErr) {
+          handleSupabaseError(schedErr, 'Reset Schedule Item');
+        }
+      }
+
+      // 3. Update loan status back to ACTIVE
+      const { error: loanErr } = await supabase
+        .from('loans')
+        .update({ status: 'ACTIVE' })
+        .eq('id', payment.loanId);
+
+      if (loanErr) {
+        handleSupabaseError(loanErr, 'Reset Loan Status');
+      }
+
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setPayments(prev => prev.filter(p => p.id !== paymentId));
+      return true;
+    }
+  };
+
+  // 9. Mark Reminder Sent
   const markReminderSent = async (notificationId: string) => {
     if (!sentReminderIds.includes(notificationId)) {
       if (isSupabaseConfigured) {
@@ -690,7 +808,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 9. Update Member Profile
+  // 10. Update Member Profile
   const updateMemberProfile = async (memberId: string, updatedData: Partial<Member>) => {
     if (isSupabaseConfigured) {
       const { error } = await supabase
@@ -775,6 +893,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       savingsRecords,
       loans,
       applications,
+      payments,
       notifications,
       stats,
       currentTab,
@@ -785,6 +904,12 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSelectedLoanForContract,
       selectedMemberForDetail,
       setSelectedMemberForDetail,
+      isRepaymentModalOpen,
+      setIsRepaymentModalOpen,
+      preselectedLoanForRepayment,
+      setPreselectedLoanForRepayment,
+      selectedReceiptForPrint,
+      setSelectedReceiptForPrint,
       currentUser,
       supabaseSession,
       supabaseUser,
@@ -804,7 +929,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       submitLoanApplication,
       approveLoanApplication,
       rejectLoanApplication,
-      recordLoanRepayment,
+      recordLoanPaymentTransaction,
+      voidLoanPayment,
       markReminderSent,
       refreshData: fetchDataFromSupabase,
       resetToDefaultData

@@ -4,7 +4,8 @@ import {
   MonthlySavingRecord, 
   Loan, 
   RepaymentScheduleItem, 
-  LoanApplication 
+  LoanApplication,
+  LoanPayment
 } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -204,6 +205,7 @@ export function mapLoanToRow(l: Partial<Loan>): Record<string, any> {
 // ==========================================
 export function mapScheduleFromRow(row: any): RepaymentScheduleItem {
   return {
+    id: row.id,
     installmentNumber: Number(row.installment_number ?? 1),
     dueDate: formatDateStr(row.due_date),
     beginningBalance: Number(row.beginning_balance ?? 0),
@@ -213,14 +215,14 @@ export function mapScheduleFromRow(row: any): RepaymentScheduleItem {
     endingBalance: Number(row.ending_balance ?? 0),
     status: row.status || 'PENDING',
     paidDate: row.paid_date ? formatDateStr(row.paid_date) : undefined,
-    paidAmount: row.status === 'PAID' ? Number(row.total_due ?? 0) : undefined,
+    paidAmount: row.paid_amount ? Number(row.paid_amount) : (row.status === 'PAID' ? Number(row.total_due ?? 0) : undefined),
     receiptNumber: row.receipt_number || undefined
   };
 }
 
 export function mapScheduleToRow(s: RepaymentScheduleItem, loanId: string): Record<string, any> {
   return {
-    id: crypto.randomUUID(),
+    id: ensureUUID(s.id),
     loan_id: ensureUUID(loanId),
     installment_number: Number(s.installmentNumber),
     due_date: formatDateStr(s.dueDate),
@@ -236,7 +238,47 @@ export function mapScheduleToRow(s: RepaymentScheduleItem, loanId: string): Reco
 }
 
 // ==========================================
-// 5. LOAN APPLICATIONS MAPPERS
+// 5. LOAN PAYMENTS MAPPERS
+// ==========================================
+export function mapLoanPaymentFromRow(row: any): LoanPayment {
+  return {
+    id: row.id,
+    loanId: row.loan_id,
+    scheduleId: row.schedule_id || undefined,
+    installmentNumber: row.installment_number ? Number(row.installment_number) : undefined,
+    paymentDate: formatDateStr(row.payment_date),
+    amountPaid: Number(row.amount_paid ?? 0),
+    principalPaid: Number(row.principal_paid ?? 0),
+    interestPaid: Number(row.interest_paid ?? 0),
+    lateFee: Number(row.late_fee ?? 0),
+    paymentMethod: row.payment_method || 'CASH',
+    receiptNumber: row.receipt_number || '',
+    recordedBy: row.recorded_by || '',
+    notes: row.notes || undefined,
+    createdAt: row.created_at || undefined
+  };
+}
+
+export function mapLoanPaymentToRow(p: Partial<LoanPayment>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (p.id) row.id = ensureUUID(p.id);
+  if (p.loanId) row.loan_id = ensureUUID(p.loanId);
+  if (p.scheduleId) row.schedule_id = ensureUUID(p.scheduleId);
+  if (p.installmentNumber !== undefined) row.installment_number = Number(p.installmentNumber);
+  if (p.paymentDate !== undefined) row.payment_date = formatDateStr(p.paymentDate);
+  if (p.amountPaid !== undefined) row.amount_paid = Number(p.amountPaid);
+  if (p.principalPaid !== undefined) row.principal_paid = Number(p.principalPaid);
+  if (p.interestPaid !== undefined) row.interest_paid = Number(p.interestPaid);
+  if (p.lateFee !== undefined) row.late_fee = Number(p.lateFee);
+  if (p.paymentMethod !== undefined) row.payment_method = p.paymentMethod;
+  if (p.receiptNumber !== undefined) row.receipt_number = p.receiptNumber;
+  if (p.recordedBy !== undefined) row.recorded_by = p.recordedBy;
+  if (p.notes !== undefined) row.notes = p.notes || null;
+  return row;
+}
+
+// ==========================================
+// 6. LOAN APPLICATIONS MAPPERS
 // ==========================================
 export function mapApplicationFromRow(row: any): LoanApplication {
   return {

@@ -16,6 +16,8 @@ import { DatabaseSchemaView } from './components/DatabaseSchemaView';
 import { DividendsCalculator } from './components/DividendsCalculator';
 import { LoginModal } from './components/LoginModal';
 import { SupabaseAuthPage } from './components/SupabaseAuthPage';
+import { RecordRepaymentModal } from './components/RecordRepaymentModal';
+import { PrintReceiptModal } from './components/PrintReceiptModal';
 import { RefreshCw, Radio, CheckCircle2, Cloud } from 'lucide-react';
 
 const MainContent: React.FC = () => {
@@ -40,7 +42,9 @@ const AppContainer: React.FC = () => {
     supabaseSession, 
     isSupabaseConfigured, 
     isLoadingData, 
-    refreshData 
+    refreshData,
+    selectedReceiptForPrint,
+    setSelectedReceiptForPrint
   } = useClub();
 
   const [bypassAuth, setBypassAuth] = useState(false);
@@ -100,6 +104,12 @@ const AppContainer: React.FC = () => {
       <Navbar />
       <MainContent />
       <LoginModal />
+      <RecordRepaymentModal />
+      <PrintReceiptModal
+        payment={selectedReceiptForPrint?.payment || null}
+        loan={selectedReceiptForPrint?.loan || null}
+        onClose={() => setSelectedReceiptForPrint(null)}
+      />
 
       <footer className="no-print mt-auto border-t border-slate-200 bg-white py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
