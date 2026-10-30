@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useClub } from '../context/ClubContext';
-import { Loan, BorrowerType, LoanStatus, LoanPayment } from '../types';
+import { Loan, BorrowerType, LoanStatus, LoanPayment, InterestMethod } from '../types';
 import { 
   HandCoins, 
   Search, 
@@ -20,7 +20,10 @@ import {
   Trash2,
   Printer,
   X,
-  Receipt
+  Receipt,
+  Edit2,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 import { LoanScheduleModal } from './LoanScheduleModal';
 import { LoanContractModal } from './LoanContractModal';
@@ -39,16 +42,28 @@ export const LoansManager: React.FC = () => {
     setIsRepaymentModalOpen,
     setPreselectedLoanForRepayment,
     setSelectedReceiptForPrint,
-    voidLoanPayment
+    voidLoanPayment,
+    updateLoan,
+    deleteLoan,
+    updateLoanPayment
   } = useClub();
 
   const [borrowerFilter, setBorrowerFilter] = useState<'ALL' | 'MEMBER' | 'EXTERNAL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | LoanStatus>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Payment History Modal state
+  // Modals state
   const [selectedLoanForHistory, setSelectedLoanForHistory] = useState<Loan | null>(null);
+  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
+  const [deletingLoan, setDeletingLoan] = useState<Loan | null>(null);
+  const [editingPayment, setEditingPayment] = useState<LoanPayment | null>(null);
+
+  // Delete Loan confirmation form state
+  const [confirmCodeInput, setConfirmCodeInput] = useState('');
+  const [isHardDelete, setIsHardDelete] = useState(false);
+
   const [voidingPaymentId, setVoidingPaymentId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isVoiding, setIsVoiding] = useState<boolean>(false);
 
   const filteredLoans = loans.filter(loan => {
@@ -319,7 +334,7 @@ export const LoansManager: React.FC = () => {
                     </td>
 
                     <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
                         {loan.status !== 'COMPLETED' && (
                           <button
                             onClick={() => {
@@ -333,6 +348,28 @@ export const LoansManager: React.FC = () => {
                             <span>បង់ប្រាក់</span>
                           </button>
                         )}
+
+                        <button
+                          onClick={() => setEditingLoan(loan)}
+                          title="កែប្រែកម្ចី"
+                          className="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-slate-600" />
+                          <span>កែប្រែ</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setDeletingLoan(loan);
+                            setConfirmCodeInput('');
+                            setIsHardDelete(false);
+                          }}
+                          title="លុប ឬមោឃភាពកម្ចី"
+                          className="px-2 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                          <span>លុប</span>
+                        </button>
 
                         <button
                           onClick={() => setSelectedLoanForHistory(loan)}
@@ -456,6 +493,15 @@ export const LoansManager: React.FC = () => {
                           <td className="py-2.5 px-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
+                                onClick={() => setEditingPayment(p)}
+                                title="កែប្រែព័ត៌មានការបង់ប្រាក់"
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+                              >
+                                <Edit2 className="w-3 h-3 text-slate-600" />
+                                <span>កែប្រែ</span>
+                              </button>
+
+                              <button
                                 onClick={() => setSelectedReceiptForPrint({ payment: p, loan: selectedLoanForHistory })}
                                 title="មើលនិងបោះពុម្ពវិក្កយបត្រ"
                                 className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold cursor-pointer flex items-center gap-1"
@@ -514,6 +560,547 @@ export const LoansManager: React.FC = () => {
           onClose={() => setSelectedLoanForContract(null)}
         />
       )}
+
+      {/* Edit Loan Modal */}
+      {editingLoan && (
+        <EditLoanModal
+          loan={editingLoan}
+          hasPayments={payments.some(p => p.loanId === editingLoan.id)}
+          onClose={() => setEditingLoan(null)}
+          onSave={async (updatedLoan, regenerateSchedule) => {
+            setIsSubmitting(true);
+            try {
+              const ok = await updateLoan(updatedLoan, regenerateSchedule);
+              if (ok) setEditingLoan(null);
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
+      )}
+
+      {/* Delete / Reject Loan Modal */}
+      {deletingLoan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600 pb-2 border-b border-slate-200">
+              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  {payments.some(p => p.loanId === deletingLoan.id) && !isHardDelete ? 'បដិសេធ/មោឃភាពកម្ចី' : 'លុបកិច្ចសន្យាកម្ចី'}
+                </h2>
+                <p className="text-xs text-slate-500 font-mono">{deletingLoan.loanCode}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-700">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <div>អ្នកខ្ចី៖ <strong>{deletingLoan.borrowerName}</strong> ({deletingLoan.borrowerPhone})</div>
+                <div>ទំហំប្រាក់ដើម៖ <strong className="font-mono">${deletingLoan.principalAmount}</strong></div>
+                <div>កាលវិភាគបង់ប្រាក់៖ <strong className="font-mono">{deletingLoan.schedule.length} លើក</strong></div>
+                <div>ប្រវត្តិបានបង់ប្រាក់៖ <strong className="font-mono text-emerald-600">{payments.filter(p => p.loanId === deletingLoan.id).length} លើក</strong></div>
+              </div>
+
+              {payments.some(p => p.loanId === deletingLoan.id) && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] leading-relaxed">
+                  ⚠️ កម្ចីនេះមានប្រវត្តិបង់ប្រាក់រួចហើយ។ តាមលក្ខខណ្ឌសុវត្ថិភាព ប្រព័ន្ធនឹងប្តូរស្ថានភាពទៅ <strong>'បានបដិសេធ' (REJECTED)</strong> ដើម្បីរក្សាប្រវត្តិវិក្កយបត្រ លើកលែងតែអ្នកជ្រើសរើសលុបជាអចិន្ត្រៃយ៍។
+                </div>
+              )}
+
+              {payments.some(p => p.loanId === deletingLoan.id) && (
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 pt-1">
+                  <input
+                    type="checkbox"
+                    checked={isHardDelete}
+                    onChange={(e) => setIsHardDelete(e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-500"
+                  />
+                  <span>លុបជាអចិន្ត្រៃយ៍ចេញពីប្រព័ន្ធ (Hard Delete)</span>
+                </label>
+              )}
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  ដើម្បីបញ្ជាក់ សូមវាយបញ្ចូលលេខកូដកម្ចី <strong className="font-mono text-rose-600">{deletingLoan.loanCode}</strong> ៖
+                </label>
+                <input
+                  type="text"
+                  placeholder={deletingLoan.loanCode}
+                  value={confirmCodeInput}
+                  onChange={(e) => setConfirmCodeInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-xs focus:outline-none focus:border-rose-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 text-xs">
+              <button
+                type="button"
+                onClick={() => setDeletingLoan(null)}
+                className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer"
+              >
+                បោះបង់
+              </button>
+              <button
+                type="button"
+                disabled={confirmCodeInput.trim() !== deletingLoan.loanCode || isSubmitting}
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  try {
+                    const ok = await deleteLoan(deletingLoan.id, isHardDelete);
+                    if (ok) setDeletingLoan(null);
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                className="px-4 py-2 text-white bg-rose-600 hover:bg-rose-700 rounded-lg font-bold shadow-xs cursor-pointer disabled:opacity-40"
+              >
+                {isSubmitting ? 'កំពុងដំណើការ...' : 'បញ្ជាក់ការលុប / មោឃភាព'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Payment Modal */}
+      {editingPayment && (
+        <EditPaymentModal
+          payment={editingPayment}
+          onClose={() => setEditingPayment(null)}
+          onSave={async (updated) => {
+            setIsSubmitting(true);
+            try {
+              const ok = await updateLoanPayment(updated);
+              if (ok) setEditingPayment(null);
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
+      )}
+    </div>
+  );
+};
+
+/* --- Sub-components for Edit Loan & Edit Payment --- */
+
+const EditLoanModal: React.FC<{
+  loan: Loan;
+  hasPayments: boolean;
+  onClose: () => void;
+  onSave: (updatedLoan: Loan, regenerateSchedule: boolean) => Promise<void>;
+  isSubmitting: boolean;
+}> = ({ loan, hasPayments, onClose, onSave, isSubmitting }) => {
+  const [borrowerName, setBorrowerName] = useState(loan.borrowerName);
+  const [borrowerPhone, setBorrowerPhone] = useState(loan.borrowerPhone);
+  const [borrowerIdCard, setBorrowerIdCard] = useState(loan.borrowerIdCard);
+  const [borrowerAddress, setBorrowerAddress] = useState(loan.borrowerAddress);
+  const [purpose, setPurpose] = useState(loan.purpose);
+  const [guarantorName, setGuarantorName] = useState(loan.guarantorName || '');
+  const [guarantorPhone, setGuarantorPhone] = useState(loan.guarantorPhone || '');
+  const [collateralDescription, setCollateralDescription] = useState(loan.collateralDescription || '');
+  const [notes, setNotes] = useState(loan.notes || '');
+
+  // Financial parameters
+  const [principalAmount, setPrincipalAmount] = useState<number>(loan.principalAmount);
+  const [monthlyInterestRate, setMonthlyInterestRate] = useState<number>(loan.monthlyInterestRate);
+  const [interestMethod, setInterestMethod] = useState<InterestMethod>(loan.interestMethod);
+  const [termMonths, setTermMonths] = useState<number>(loan.termMonths);
+  const [startDate, setStartDate] = useState(loan.startDate);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const financialChanged = 
+      principalAmount !== loan.principalAmount ||
+      monthlyInterestRate !== loan.monthlyInterestRate ||
+      interestMethod !== loan.interestMethod ||
+      termMonths !== loan.termMonths ||
+      startDate !== loan.startDate;
+
+    const updatedLoan: Loan = {
+      ...loan,
+      borrowerName,
+      borrowerPhone,
+      borrowerIdCard,
+      borrowerAddress,
+      purpose,
+      guarantorName,
+      guarantorPhone,
+      collateralDescription,
+      notes,
+      principalAmount: Number(principalAmount),
+      monthlyInterestRate: Number(monthlyInterestRate),
+      interestMethod,
+      termMonths: Number(termMonths),
+      startDate
+    };
+
+    await onSave(updatedLoan, !hasPayments && financialChanged);
+  };
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Edit2 className="w-5 h-5 text-[#00609C]" />
+              <span>កែប្រែកិច្ចសន្យាកម្ចី ({loan.loanCode})</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              {hasPayments ? 'កម្ចីនេះមានប្រវត្តិបង់ប្រាក់រួចហើយ - ផ្នែកហិរញ្ញវត្ថុត្រូវចាក់សោ' : 'អាចកែប្រែព័ត៌មានអ្នកខ្ចី និងលក្ខខណ្ឌហិរញ្ញវត្ថុបាន'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {hasPayments && (
+          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-start gap-2">
+            <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <strong>ជូនដំណឹង៖</strong> កម្ចីនេះមានប្រវត្តិបង់ប្រាក់រួចហើយ! មិនអាចផ្លាស់ប្តូរទំហំប្រាក់ដើម អត្រាការប្រាក់ វិធីសាស្ត្រ ឬរយៈពេលបានទេ ដើម្បីការពារភាពត្រឹមត្រូវនៃទិន្នន័យកាលវិភាគ។
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <div className="font-bold text-slate-800 text-xs">១. ព័ត៌មានអ្នកខ្ចី & អ្នកធានា (Borrower & Guarantor)</div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">ឈ្មោះអ្នកខ្ចី *</label>
+              <input
+                type="text"
+                required
+                value={borrowerName}
+                onChange={(e) => setBorrowerName(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">លេខទូរស័ព្ទ *</label>
+              <input
+                type="text"
+                required
+                value={borrowerPhone}
+                onChange={(e) => setBorrowerPhone(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono focus:outline-none focus:border-[#00609C]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">លេខអត្តសញ្ញាណប័ណ្ណ *</label>
+              <input
+                type="text"
+                required
+                value={borrowerIdCard}
+                onChange={(e) => setBorrowerIdCard(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono focus:outline-none focus:border-[#00609C]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">គោលបំណងកម្ចី</label>
+              <input
+                type="text"
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">ឈ្មោះអ្នកធានា</label>
+              <input
+                type="text"
+                value={guarantorName}
+                onChange={(e) => setGuarantorName(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">លេខទូរស័ព្ទអ្នកធានា</label>
+              <input
+                type="text"
+                value={guarantorPhone}
+                onChange={(e) => setGuarantorPhone(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono focus:outline-none focus:border-[#00609C]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">អាសយដ្ឋានបច្ចុប្បន្ន</label>
+            <input
+              type="text"
+              value={borrowerAddress}
+              onChange={(e) => setBorrowerAddress(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">ទ្រព្យធានា / បញ្ចាំ</label>
+            <input
+              type="text"
+              value={collateralDescription}
+              onChange={(e) => setCollateralDescription(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+            />
+          </div>
+
+          <div className="pt-2 border-t border-slate-200">
+            <div className="font-bold text-slate-800 text-xs mb-2">២. លក្ខខណ្ឌហិរញ្ញវត្ថុ (Financial Terms)</div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">ទំហំប្រាក់ដើម ($)</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  disabled={hasPayments}
+                  value={principalAmount}
+                  onChange={(e) => setPrincipalAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">អត្រាការប្រាក់ (%/ខែ)</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  disabled={hasPayments}
+                  value={monthlyInterestRate}
+                  onChange={(e) => setMonthlyInterestRate(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-[#00609C] disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">រយៈពេល (ខែ)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  disabled={hasPayments}
+                  value={termMonths}
+                  onChange={(e) => setTermMonths(parseInt(e.target.value) || 1)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">វិធីសាស្ត្រគណនាការប្រាក់</label>
+                <select
+                  disabled={hasPayments}
+                  value={interestMethod}
+                  onChange={(e) => setInterestMethod(e.target.value as InterestMethod)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100 disabled:text-slate-500 bg-white"
+                >
+                  <option value="DECLINING">DECLINING (ការប្រាក់ថយចុះ)</option>
+                  <option value="FLAT">FLAT (ការប្រាក់ថេរ)</option>
+                  <option value="INTEREST_ONLY">INTEREST_ONLY (បង់តែការប្រាក់)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">ថ្ងៃចាប់ផ្តើម</label>
+                <input
+                  type="date"
+                  disabled={hasPayments}
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">កំណត់សម្គាល់</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer"
+            >
+              បោះបង់
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-white bg-[#00609C] hover:bg-[#004f80] font-bold rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              {isSubmitting ? 'កំពុងរក្សាទុក...' : 'រក្សាទុកការកែប្រែ'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const EditPaymentModal: React.FC<{
+  payment: LoanPayment;
+  onClose: () => void;
+  onSave: (updatedPayment: LoanPayment) => Promise<void>;
+  isSubmitting: boolean;
+}> = ({ payment, onClose, onSave, isSubmitting }) => {
+  const [amountPaid, setAmountPaid] = useState<number>(payment.amountPaid);
+  const [paymentDate, setPaymentDate] = useState<string>(payment.paymentDate);
+  const [paymentMethod, setPaymentMethod] = useState(payment.paymentMethod);
+  const [receiptNumber, setReceiptNumber] = useState(payment.receiptNumber);
+  const [lateFee, setLateFee] = useState<number>(payment.lateFee || 0);
+  const [notes, setNotes] = useState(payment.notes || '');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (amountPaid <= 0) return;
+
+    await onSave({
+      ...payment,
+      amountPaid: Number(amountPaid),
+      paymentDate,
+      paymentMethod,
+      receiptNumber,
+      lateFee: Number(lateFee),
+      notes
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Edit2 className="w-5 h-5 text-emerald-600" />
+            <span>កែប្រែប្រវត្តិបង់ប្រាក់ ({payment.receiptNumber})</span>
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">ចំនួនទឹកប្រាក់បានបង់ ($) *</label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              required
+              value={amountPaid}
+              onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-emerald-700"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">ថ្លៃពិន័យយឺត ($)</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                value={lateFee}
+                onChange={(e) => setLateFee(parseFloat(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-amber-800"
+              />
+            </div>
+
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">កាលបរិច្ឆេទបង់ *</label>
+              <input
+                type="date"
+                required
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">វិធីសាស្ត្របង់</label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as any)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white font-semibold"
+              >
+                <option value="ABA_PAY">ABA PAY</option>
+                <option value="CASH">CASH</option>
+                <option value="WING">WING</option>
+                <option value="AC_LEDA">AC_LEDA</option>
+                <option value="OTHER">OTHER</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">លេខវិក្កយបត្រ *</label>
+              <input
+                type="text"
+                required
+                value={receiptNumber}
+                onChange={(e) => setReceiptNumber(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">កំណត់សម្គាល់</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer"
+            >
+              បោះបង់
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg font-bold shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              {isSubmitting ? 'កំពុងកែប្រែ...' : 'រក្សាទុកការកែប្រែ'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

@@ -319,3 +319,34 @@ export function mapApplicationToRow(a: Partial<LoanApplication>): Record<string,
   if (a.appliedDate !== undefined) row.applied_date = formatDateStr(a.appliedDate);
   return row;
 }
+
+// ==========================================
+// 7. AUDIT LOG HELPER
+// ==========================================
+export async function insertAuditLog(
+  tableName: string,
+  recordId: string,
+  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'VOID',
+  oldData: any,
+  newData: any,
+  changedBy: string
+): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  try {
+    const { error } = await supabase.from('audit_log').insert({
+      id: ensureUUID(),
+      table_name: tableName,
+      record_id: ensureUUID(recordId),
+      action,
+      old_data: oldData ? JSON.parse(JSON.stringify(oldData)) : null,
+      new_data: newData ? JSON.parse(JSON.stringify(newData)) : null,
+      changed_by: changedBy,
+      changed_at: new Date().toISOString()
+    });
+    if (error) {
+      console.error('[Audit Log Error]:', error);
+    }
+  } catch (e) {
+    console.error('[Audit Log Exception]:', e);
+  }
+}

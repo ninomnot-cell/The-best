@@ -539,7 +539,7 @@ export const MembersList: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="ឧ. សុខ ចិន្តា"
+                  placeholder="ឧ. ឈ្មោះសមាជិក"
                   value={newMemberNameKh}
                   onChange={(e) => setNewMemberNameKh(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
@@ -613,7 +613,8 @@ export const MembersList: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    min="10"
+                    step="any"
+                    min="0"
                     value={newMemberCommitment}
                     onChange={(e) => setNewMemberCommitment(Number(e.target.value))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useClub } from '../context/ClubContext';
 import { LoanPayment, Loan } from '../types';
 import { Printer, X, CheckCircle2, Building2, Phone, Calendar, Hash, FileText } from 'lucide-react';
 
@@ -13,7 +14,13 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
   loan,
   onClose,
 }) => {
+  const { members } = useClub();
+
   if (!payment || !loan) return null;
+
+  const president = members?.find(m => m.role === 'ប្រធានក្លឹប' && m.status === 'ACTIVE') || members?.find(m => m.role === 'ប្រធានក្លឹប');
+  const treasurer = members?.find(m => m.role === 'បេឡាធិការ' && m.status === 'ACTIVE') || members?.find(m => m.role === 'បេឡាធិការ');
+  const phonesList = [president?.phone, treasurer?.phone].filter(Boolean).join(' / ') || '012 889 901';
 
   const handlePrint = () => {
     window.print();
@@ -63,7 +70,7 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
                   The Best Family Club
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  រាជធានីភ្នំពេញ · ទូរស័ព្ទ៖ 012 889 901 / 098 776 543
+                  រាជធានីភ្នំពេញ · ទូរស័ព្ទ៖ {phonesList}
                 </p>
               </div>
             </div>

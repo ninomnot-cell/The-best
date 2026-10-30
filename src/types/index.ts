@@ -91,6 +91,7 @@ export interface Loan {
   schedule: RepaymentScheduleItem[];
   approvedBy?: string;
   contractNumber: string;
+  notes?: string;
   createdAt: string;
 }
 

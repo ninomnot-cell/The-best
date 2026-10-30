@@ -1,6 +1,7 @@
 import React from 'react';
+import { useClub } from '../context/ClubContext';
 import { Loan } from '../types';
-import { X, Printer, ShieldCheck, Download } from 'lucide-react';
+import { X, Printer, ShieldCheck } from 'lucide-react';
 
 interface LoanContractModalProps {
   loan: Loan;
@@ -8,6 +9,41 @@ interface LoanContractModalProps {
 }
 
 export const LoanContractModal: React.FC<LoanContractModalProps> = ({ loan, onClose }) => {
+  const { members } = useClub();
+
+  // 1. Read current club officers from the Supabase members table by role
+  const president = members.find(m => m.role === 'ប្រធានក្លឹប' && m.status === 'ACTIVE') || 
+                    members.find(m => m.role === 'ប្រធានក្លឹប');
+
+  const treasurer = members.find(m => m.role === 'បេឡាធិការ' && m.status === 'ACTIVE') || 
+                    members.find(m => m.role === 'បេឡាធិការ');
+
+  const accountant = members.find(m => m.role === 'គណនេយ្យករ' && m.status === 'ACTIVE') || 
+                     members.find(m => m.role === 'គណនេយ្យករ');
+
+  // Names & Warning fallbacks
+  const presidentName = president?.nameKhmer || null;
+  const treasurerName = treasurer?.nameKhmer || null;
+  const accountantName = accountant?.nameKhmer || null;
+
+  // 2. Build dynamic representation string for "តំណាងដោយ"
+  let representationText = '';
+  if (presidentName && treasurerName) {
+    representationText = `លោក/កញ្ញា ${presidentName} (ប្រធានក្លឹប) និង ${treasurerName} (បេឡាធិការ)`;
+  } else if (presidentName) {
+    representationText = `លោក/កញ្ញា ${presidentName} (ប្រធានក្លឹប) [មិនទាន់កំណត់បេឡាធិការ]`;
+  } else if (treasurerName) {
+    representationText = `លោក/កញ្ញា ${treasurerName} (បេឡាធិការ) [មិនទាន់កំណត់ប្រធានក្លឹប]`;
+  } else {
+    representationText = `[មិនទាន់កំណត់ប្រធានក្លឹប និងបេឡាធិការក្នុងប្រព័ន្ធ]`;
+  }
+
+  // 3. Build dynamic phone string for "ទូរស័ព្ទទំនាក់ទំនង"
+  const officerPhones = [president?.phone, treasurer?.phone].filter(Boolean);
+  const phonesDisplay = officerPhones.length > 0 
+    ? officerPhones.join(' / ') 
+    : '[មិនទាន់កំណត់លេខទូរស័ព្ទតំណាង]';
+
   const handlePrint = () => {
     window.print();
   };
@@ -98,9 +134,18 @@ export const LoanContractModal: React.FC<LoanContractModalProps> = ({ loan, onCl
             <div className="font-bold text-[#00609C]">ភាគី «ក» (ម្ចាស់បំណុល) ៖</div>
             <div className="pl-3 space-y-0.5 text-slate-800">
               <div><strong>ឈ្មោះ ៖</strong> សមាគម <strong>ឌឹ បេស៍ ហ្វាមីលី ក្លឹប (THE BEST FAMILY CLUB)</strong></div>
-              <div><strong>តំណាងដោយ ៖</strong> លោក សុខ ចិន្តា (ប្រធានក្លឹប) និង កញ្ញា គឹម ស្រីនិច (បេឡាធិការ)</div>
+              <div>
+                <strong>តំណាងដោយ ៖</strong>{' '}
+                {(!presidentName || !treasurerName) ? (
+                  <span className="text-amber-800 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-sans">
+                    {representationText}
+                  </span>
+                ) : (
+                  <span>{representationText}</span>
+                )}
+              </div>
               <div><strong>អាសយដ្ឋាន ៖</strong> រាជធានីភ្នំពេញ ព្រះរាជាណាចក្រកម្ពុជា</div>
-              <div><strong>ទូរស័ព្ទទំនាក់ទំនង ៖</strong> 012 889 901 / 087 665 432</div>
+              <div><strong>ទូរស័ព្ទទំនាក់ទំនង ៖</strong> <span className="font-mono">{phonesDisplay}</span></div>
             </div>
           </div>
 
@@ -182,13 +227,23 @@ export const LoanContractModal: React.FC<LoanContractModalProps> = ({ loan, onCl
 
           {/* Signatures & Fingerprints Grid */}
           <div className="pt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center text-xs">
-            <div className="space-y-16">
+            <div className="space-y-12">
               <div className="font-bold text-slate-800">
                 ហត្ថលេខា/ស្នាមមេដៃភាគី «ក»<br />(តំណាងក្លឹប The Best Club)
               </div>
-              <div>
-                <div className="font-bold text-slate-900">{loan.approvedBy || 'សុខ ចិន្តា'}</div>
-                <div className="text-[11px] text-slate-500">ប្រធានក្លឹប</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="font-bold text-slate-900">
+                    {presidentName || <span className="text-amber-800 font-sans font-normal">[មិនទាន់កំណត់ប្រធានក្លឹប]</span>}
+                  </div>
+                  <div className="text-[11px] text-slate-500">ប្រធានក្លឹប</div>
+                </div>
+                <div>
+                  <div className="font-bold text-slate-900">
+                    {treasurerName || <span className="text-amber-800 font-sans font-normal">[មិនទាន់កំណត់បេឡាធិការ]</span>}
+                  </div>
+                  <div className="text-[11px] text-slate-500">បេឡាធិការ</div>
+                </div>
               </div>
             </div>
 
@@ -217,8 +272,10 @@ export const LoanContractModal: React.FC<LoanContractModalProps> = ({ loan, onCl
                 ហត្ថលេខា/ស្នាមមេដៃ<br />(សាក្សី/គណនេយ្យករ)
               </div>
               <div>
-                <div className="font-bold text-slate-900">ហេង សុភ័ក្ត្រ</div>
-                <div className="text-[11px] text-slate-500">គណនេយ្យករក្លឹប</div>
+                <div className="font-bold text-slate-900">
+                  {accountantName || (treasurerName ? treasurerName : <span className="text-slate-400 font-normal">[មិនទាន់កំណត់]</span>)}
+                </div>
+                <div className="text-[11px] text-slate-500">គណនេយ្យករ/សាក្សីក្លឹប</div>
               </div>
             </div>
           </div>
@@ -238,3 +295,4 @@ export const LoanContractModal: React.FC<LoanContractModalProps> = ({ loan, onCl
     </div>
   );
 };
+

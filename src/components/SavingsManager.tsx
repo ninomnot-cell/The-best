@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useClub } from '../context/ClubContext';
+import { MonthlySavingRecord } from '../types';
 import { 
   PiggyBank, 
   Plus, 
@@ -11,27 +12,45 @@ import {
   CreditCard, 
   ArrowDownToLine,
   Receipt,
-  Download
+  Download,
+  Edit2,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { exportSavingsToCSV } from '../utils/exportCsv';
 
 export const SavingsManager: React.FC = () => {
-  const { members, savingsRecords, addSavingsRecord } = useClub();
+  const { 
+    members, 
+    savingsRecords, 
+    addSavingsRecord,
+    updateSavingsRecord,
+    deleteSavingsRecord
+  } = useClub();
 
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'matrix' | 'table'>('matrix');
 
+  // Edit / Delete states for monthly savings
+  const [editingRecord, setEditingRecord] = useState<MonthlySavingRecord | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<MonthlySavingRecord | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Find treasurer for default recordedBy
+  const treasurer = members.find(m => m.role === 'បេឡាធិការ' && m.status === 'ACTIVE') || members.find(m => m.role === 'បេឡាធិការ');
+  const defaultRecordedBy = treasurer ? `${treasurer.nameKhmer} (បេឡាធិការ)` : 'បេឡាធិការក្លឹប';
+
   // Form states
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id || '');
   const [depositMonth, setDepositMonth] = useState<number>(10);
   const [depositYear, setDepositYear] = useState<number>(2026);
-  const [depositAmount, setDepositAmount] = useState<number>(100);
+  const [depositAmount, setDepositAmount] = useState<string>('100');
   const [depositDate, setDepositDate] = useState('2026-10-27');
   const [paymentMethod, setPaymentMethod] = useState<'ABA_PAY' | 'WING' | 'CASH' | 'AC_LEDA'>('ABA_PAY');
   const [refNumber, setRefNumber] = useState(`ABA-${Math.floor(100000 + Math.random() * 900000)}`);
-  const [recordedBy, setRecordedBy] = useState('គឹម ស្រីនិច (បេឡា)');
+  const [recordedBy, setRecordedBy] = useState(defaultRecordedBy);
   const [notes, setNotes] = useState('');
 
   const months = [
@@ -49,27 +68,74 @@ export const SavingsManager: React.FC = () => {
     { num: 12, name: 'ធ្នូ (Dec)' }
   ];
 
-  const handleRecordDeposit = (e: React.FormEvent) => {
+  const handleRecordDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     const member = members.find(m => m.id === selectedMemberId);
     if (!member) return;
 
-    addSavingsRecord({
-      memberId: member.id,
-      memberName: member.nameKhmer,
-      year: Number(depositYear),
-      month: Number(depositMonth),
-      amount: Number(depositAmount),
-      paymentDate: depositDate,
-      paymentMethod: paymentMethod,
-      referenceNumber: refNumber,
-      recordedBy: recordedBy,
-      notes: notes
-    });
+    const amt = parseFloat(depositAmount);
+    if (isNaN(amt) || amt <= 0) {
+      alert('ចំនួនទឹកប្រាក់សន្សំត្រូវតែធំជាង 0');
+      return;
+    }
 
-    setIsDepositModalOpen(false);
-    setNotes('');
-    setRefNumber(`ABA-${Math.floor(100000 + Math.random() * 900000)}`);
+    setIsSubmitting(true);
+    try {
+      await addSavingsRecord({
+        memberId: member.id,
+        memberName: member.nameKhmer,
+        year: Number(depositYear),
+        month: Number(depositMonth),
+        amount: amt,
+        paymentDate: depositDate,
+        paymentMethod: paymentMethod,
+        referenceNumber: refNumber,
+        recordedBy: recordedBy,
+        notes: notes
+      });
+
+      setIsDepositModalOpen(false);
+      setNotes('');
+      setRefNumber(`ABA-${Math.floor(100000 + Math.random() * 900000)}`);
+    } catch (err: any) {
+      alert(`បរាជ័យក្នុងការកត់ត្រាប្រាក់សន្សំ៖ ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmEditSavings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRecord) return;
+
+    if (editingRecord.amount <= 0) {
+      alert('ចំនួនទឹកប្រាក់សន្សំត្រូវតែធំជាង 0');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const ok = await updateSavingsRecord(editingRecord);
+      if (ok) {
+        setEditingRecord(null);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmDeleteSavings = async () => {
+    if (!deletingRecord) return;
+
+    setIsSubmitting(true);
+    try {
+      const ok = await deleteSavingsRecord(deletingRecord.id);
+      if (ok) {
+        setDeletingRecord(null);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const filteredRecords = savingsRecords.filter(r => {
@@ -306,6 +372,7 @@ export const SavingsManager: React.FC = () => {
                   <th className="py-3 px-3 font-semibold">លេខកូដយោង (Ref ID)</th>
                   <th className="py-3 px-3 font-semibold">អ្នកកត់ត្រា</th>
                   <th className="py-3 px-3 font-semibold">កំណត់សម្គាល់</th>
+                  <th className="py-3 px-3 font-semibold text-right">សកម្មភាព</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -336,6 +403,26 @@ export const SavingsManager: React.FC = () => {
                     </td>
                     <td className="py-3 px-3 text-slate-500 italic text-[11px]">
                       {r.notes || '-'}
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => setEditingRecord(r)}
+                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                          title="កែប្រែទិន្នន័យបង់សន្សំ"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>កែប្រែ</span>
+                        </button>
+                        <button
+                          onClick={() => setDeletingRecord(r)}
+                          className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                          title="លុបកំណត់ត្រាបង់សន្សំ"
+                        >
+                          <Trash2 className="w-3 h-3 text-rose-600" />
+                          <span>លុប</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -421,10 +508,11 @@ export const SavingsManager: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    step="any"
+                    min="0"
                     required
                     value={depositAmount}
-                    onChange={(e) => setDepositAmount(Number(e.target.value))}
+                    onChange={(e) => setDepositAmount(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C] font-mono text-sm"
                   />
                 </div>
@@ -509,12 +597,175 @@ export const SavingsManager: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-white bg-[#00609C] hover:bg-[#004f80] rounded-lg font-semibold cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-white bg-[#00609C] hover:bg-[#004f80] rounded-lg font-semibold cursor-pointer disabled:opacity-50"
                 >
-                  កត់ត្រាការបង់ប្រាក់
+                  {isSubmitting ? 'កំពុង រក្សាទុក...' : 'កត់ត្រាការបង់ប្រាក់'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT SAVINGS RECORD MODAL */}
+      {editingRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-[#00609C]" />
+                <span>កែប្រែកំណត់ត្រាប្រាក់សន្សំប្រចាំខែ</span>
+              </h2>
+              <button
+                onClick={() => setEditingRecord(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmEditSavings} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <div><span className="text-slate-500">សមាជិក៖</span> <strong>{editingRecord.memberName}</strong></div>
+                <div><span className="text-slate-500">សម្រាប់៖</span> <strong className="font-mono">ខែ {editingRecord.month}/{editingRecord.year}</strong></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    ចំនួនទឹកប្រាក់សន្សំ ($) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    required
+                    value={editingRecord.amount}
+                    onChange={(e) => setEditingRecord({ ...editingRecord, amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C] font-mono text-sm font-bold text-[#00609C]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    កាលបរិច្ឆេទបង់ *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editingRecord.paymentDate}
+                    onChange={(e) => setEditingRecord({ ...editingRecord, paymentDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    មធ្យោបាយបង់ប្រាក់
+                  </label>
+                  <select
+                    value={editingRecord.paymentMethod}
+                    onChange={(e) => setEditingRecord({ ...editingRecord, paymentMethod: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+                  >
+                    <option value="ABA_PAY">ABA Pay / KHQR</option>
+                    <option value="WING">Wing Bank</option>
+                    <option value="AC_LEDA">ACLEDA Bank</option>
+                    <option value="CASH">សាច់ប្រាក់សុទ្ធ (Cash)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    លេខកូដប្រតិបត្តិការ (Ref ID) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingRecord.referenceNumber}
+                    onChange={(e) => setEditingRecord({ ...editingRecord, referenceNumber: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C] font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  កំណត់សម្គាល់
+                </label>
+                <input
+                  type="text"
+                  value={editingRecord.notes || ''}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingRecord(null)}
+                  className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer"
+                >
+                  បោះបង់
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmitting ? 'កំពុងកែប្រែ...' : 'រក្សាទុកការកែប្រែ'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE SAVINGS RECORD CONFIRMATION DIALOG */}
+      {deletingRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600 pb-2 border-b border-slate-200">
+              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <h2 className="text-base font-bold text-slate-900">
+                បញ្ជាក់ការលុបកំណត់ត្រាប្រាក់សន្សំ
+              </h2>
+            </div>
+
+            <div className="space-y-2 text-xs text-slate-700">
+              <p>តើអ្នកប្រាកដជាចង់លុបកំណត់ត្រាប្រាក់សន្សំខាងក្រោមនេះមែនទេ? ទិន្នន័យសរុបរបស់សមាជិកនឹងត្រូវគណនាឡើងវិញ។</p>
+              
+              <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl space-y-1 font-mono text-xs">
+                <div><span className="text-slate-500 font-sans">ឈ្មោះសមាជិក៖</span> <strong>{deletingRecord.memberName}</strong></div>
+                <div><span className="text-slate-500 font-sans">សម្រាប់៖</span> <strong>ខែ {deletingRecord.month}/{deletingRecord.year}</strong></div>
+                <div><span className="text-slate-500 font-sans">ចំនួនទឹកប្រាក់៖</span> <strong className="text-rose-600">${deletingRecord.amount.toFixed(2)}</strong></div>
+                <div><span className="text-slate-500 font-sans">លេខវិក្កយបត្រ៖</span> {deletingRecord.referenceNumber}</div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 text-xs">
+              <button
+                type="button"
+                onClick={() => setDeletingRecord(null)}
+                className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer"
+              >
+                បោះបង់
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteSavings}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-white bg-rose-600 hover:bg-rose-700 rounded-lg font-bold shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? 'កំពុងលុប...' : 'បញ្ជាក់ការលុប'}
+              </button>
+            </div>
           </div>
         </div>
       )}

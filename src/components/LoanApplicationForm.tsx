@@ -339,8 +339,8 @@ export const LoanApplicationForm: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    min="50"
-                    step="50"
+                    min="0"
+                    step="any"
                     required
                     value={requestedAmount}
                     onChange={(e) => setRequestedAmount(Number(e.target.value))}
@@ -387,9 +387,8 @@ export const LoanApplicationForm: React.FC = () => {
                     <div className="relative flex-1 max-w-xs">
                       <input
                         type="number"
-                        step="0.05"
+                        step="any"
                         min="0"
-                        max="20"
                         required
                         value={interestRate}
                         onChange={(e) => setInterestRate(Number(e.target.value))}

@@ -30,7 +30,8 @@ import {
   mapApplicationFromRow,
   mapApplicationToRow,
   mapLoanPaymentFromRow,
-  mapLoanPaymentToRow
+  mapLoanPaymentToRow,
+  insertAuditLog
 } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
 
@@ -79,6 +80,11 @@ interface ClubContextType {
   addMember: (member: Omit<Member, 'id' | 'memberCode' | 'totalSavings' | 'totalDividendsEarned' | 'activeLoanAmount'>) => Promise<void>;
   updateMember: (member: Member) => Promise<void>;
   addSavingsRecord: (record: Omit<MonthlySavingRecord, 'id'>) => Promise<void>;
+  updateSavingsRecord: (record: MonthlySavingRecord) => Promise<boolean>;
+  deleteSavingsRecord: (recordId: string) => Promise<boolean>;
+  updateLoan: (loan: Loan, regenerateSchedule?: boolean) => Promise<boolean>;
+  deleteLoan: (loanId: string, hardDelete?: boolean) => Promise<boolean>;
+  updateLoanPayment: (payment: LoanPayment) => Promise<boolean>;
   submitLoanApplication: (app: Omit<LoanApplication, 'id' | 'status' | 'appliedDate'>) => Promise<void>;
   approveLoanApplication: (applicationId: string, customInterestRate?: number, customMethod?: import('../types').InterestMethod) => Promise<void>;
   rejectLoanApplication: (applicationId: string) => Promise<void>;
@@ -499,6 +505,208 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const updatedSavings = targetMember.totalSavings + recordData.amount;
         setMembers(prev => prev.map(m => m.id === targetMember.id ? { ...m, totalSavings: updatedSavings } : m));
       }
+    }
+  };
+
+  // Helper to recalculate member total savings from monthly_savings table in Supabase
+  const recalculateMemberSavings = async (memberId: string) => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data, error } = await supabase
+        .from('monthly_savings')
+        .select('amount')
+        .eq('member_id', memberId);
+
+      if (!error && data) {
+        const sum = data.reduce((acc: number, item: any) => acc + Number(item.amount || 0), 0);
+        await supabase
+          .from('members')
+          .update({ total_savings: sum })
+          .eq('id', memberId);
+      }
+    } catch (e) {
+      console.error('[Recalculate Member Savings Error]:', e);
+    }
+  };
+
+  // Update Savings Record
+  const updateSavingsRecord = async (updatedRecord: MonthlySavingRecord): Promise<boolean> => {
+    const oldRecord = savingsRecords.find(r => r.id === updatedRecord.id);
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Admin (គណៈកម្មការ)';
+
+    // Check duplicate (member_id, year, month)
+    const duplicate = savingsRecords.find(
+      r => r.id !== updatedRecord.id && 
+           r.memberId === updatedRecord.memberId && 
+           r.year === updatedRecord.year && 
+           r.month === updatedRecord.month
+    );
+    if (duplicate) {
+      alert(`សមាជិកនេះបានសន្សំប្រាក់សម្រាប់ ខែ ${updatedRecord.month}/${updatedRecord.year} រួចហើយ! មិនអាចកែប្រែស្ទួនបានទេ។`);
+      return false;
+    }
+
+    if (isSupabaseConfigured) {
+      const row = mapSavingToRow(updatedRecord);
+      const { error } = await supabase
+        .from('monthly_savings')
+        .update(row)
+        .eq('id', updatedRecord.id);
+
+      if (error) {
+        handleSupabaseError(error, 'Update Savings Record');
+        return false;
+      }
+
+      await insertAuditLog('monthly_savings', updatedRecord.id, 'UPDATE', oldRecord, updatedRecord, userEmail);
+      
+      // Recalculate total_savings for member(s)
+      await recalculateMemberSavings(updatedRecord.memberId);
+      if (oldRecord && oldRecord.memberId !== updatedRecord.memberId) {
+        await recalculateMemberSavings(oldRecord.memberId);
+      }
+
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setSavingsRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+      return true;
+    }
+  };
+
+  // Delete Savings Record
+  const deleteSavingsRecord = async (recordId: string): Promise<boolean> => {
+    const target = savingsRecords.find(r => r.id === recordId);
+    if (!target) return false;
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Admin (គណៈកម្មការ)';
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('monthly_savings')
+        .delete()
+        .eq('id', recordId);
+
+      if (error) {
+        handleSupabaseError(error, 'Delete Savings Record');
+        return false;
+      }
+
+      await insertAuditLog('monthly_savings', recordId, 'DELETE', target, null, userEmail);
+      await recalculateMemberSavings(target.memberId);
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setSavingsRecords(prev => prev.filter(r => r.id !== recordId));
+      return true;
+    }
+  };
+
+  // Update Loan
+  const updateLoan = async (updatedLoan: Loan, regenerateSchedule: boolean = false): Promise<boolean> => {
+    const oldLoan = loans.find(l => l.id === updatedLoan.id);
+    if (!oldLoan) return false;
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Admin (គណៈកម្មការ)';
+
+    if (isSupabaseConfigured) {
+      const loanRow = mapLoanToRow(updatedLoan);
+      const { error: loanErr } = await supabase
+        .from('loans')
+        .update(loanRow)
+        .eq('id', updatedLoan.id);
+
+      if (loanErr) {
+        handleSupabaseError(loanErr, 'Update Loan');
+        return false;
+      }
+
+      // If financial params changed & allowed, regenerate repayment schedule
+      if (regenerateSchedule) {
+        await supabase.from('loan_repayment_schedules').delete().eq('loan_id', updatedLoan.id);
+        
+        const newSched = generateAmortizationSchedule(
+          updatedLoan.principalAmount,
+          updatedLoan.monthlyInterestRate,
+          updatedLoan.termMonths,
+          updatedLoan.startDate,
+          updatedLoan.interestMethod
+        );
+        const schedRows = newSched.map(s => mapScheduleToRow(s, updatedLoan.id));
+        const { error: schedErr } = await supabase.from('loan_repayment_schedules').insert(schedRows);
+        if (schedErr) {
+          handleSupabaseError(schedErr, 'Regenerate Amortization Schedule');
+        }
+      }
+
+      await insertAuditLog('loans', updatedLoan.id, 'UPDATE', oldLoan, updatedLoan, userEmail);
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setLoans(prev => prev.map(l => l.id === updatedLoan.id ? updatedLoan : l));
+      return true;
+    }
+  };
+
+  // Delete / Cancel Loan
+  const deleteLoan = async (loanId: string, hardDelete: boolean = false): Promise<boolean> => {
+    const targetLoan = loans.find(l => l.id === loanId);
+    if (!targetLoan) return false;
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Admin (គណៈកម្មការ)';
+
+    if (isSupabaseConfigured) {
+      if (hardDelete) {
+        await supabase.from('loan_payments').delete().eq('loan_id', loanId);
+        await supabase.from('loan_repayment_schedules').delete().eq('loan_id', loanId);
+        const { error } = await supabase.from('loans').delete().eq('id', loanId);
+        if (error) {
+          handleSupabaseError(error, 'Delete Loan Permanently');
+          return false;
+        }
+        await insertAuditLog('loans', loanId, 'DELETE', targetLoan, null, userEmail);
+      } else {
+        const { error } = await supabase.from('loans').update({ status: 'REJECTED' }).eq('id', loanId);
+        if (error) {
+          handleSupabaseError(error, 'Cancel Loan (Set Status REJECTED)');
+          return false;
+        }
+        await insertAuditLog('loans', loanId, 'UPDATE', targetLoan, { ...targetLoan, status: 'REJECTED' }, userEmail);
+      }
+
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setLoans(prev => prev.filter(l => l.id !== loanId));
+      return true;
+    }
+  };
+
+  // Update Loan Payment
+  const updateLoanPayment = async (updatedPayment: LoanPayment): Promise<boolean> => {
+    const oldPayment = payments.find(p => p.id === updatedPayment.id);
+    if (!oldPayment) return false;
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Admin (គណៈកម្មការ)';
+
+    if (isSupabaseConfigured) {
+      const row = mapLoanPaymentToRow(updatedPayment);
+      const { error } = await supabase
+        .from('loan_payments')
+        .update(row)
+        .eq('id', updatedPayment.id);
+
+      if (error) {
+        handleSupabaseError(error, 'Update Loan Payment');
+        return false;
+      }
+
+      await insertAuditLog('loan_payments', updatedPayment.id, 'UPDATE', oldPayment, updatedPayment, userEmail);
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setPayments(prev => prev.map(p => p.id === updatedPayment.id ? updatedPayment : p));
+      return true;
     }
   };
 
@@ -926,6 +1134,11 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addMember,
       updateMember,
       addSavingsRecord,
+      updateSavingsRecord,
+      deleteSavingsRecord,
+      updateLoan,
+      deleteLoan,
+      updateLoanPayment,
       submitLoanApplication,
       approveLoanApplication,
       rejectLoanApplication,

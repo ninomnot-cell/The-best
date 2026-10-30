@@ -225,8 +225,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ member, onCl
                   <DollarSign className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="number"
-                    min="10"
-                    step="10"
+                    step="any"
+                    min="0"
                     value={monthlyCommitment}
                     onChange={(e) => setMonthlyCommitment(Number(e.target.value))}
                     className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-sm bg-white focus:outline-none focus:border-[#00609C]"

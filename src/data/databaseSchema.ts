@@ -145,6 +145,22 @@ export const DATABASE_SCHEMA_TABLES: SchemaTable[] = [
       { name: 'applied_date', type: 'DATE', nullable: false, descriptionKhmer: 'កាលបរិច្ឆេទដាក់ពាក្យ', descriptionEnglish: 'Application submission date' },
     ],
     indexes: ['CREATE INDEX idx_applications_status ON loan_applications(status);']
+  },
+  {
+    tableName: 'audit_log',
+    tableNameKhmer: 'តារាងប្រវត្តិសកម្មភាពកែប្រែនិងលុប (Audit Log)',
+    descriptionKhmer: 'កត់ត្រារាល់ប្រតិបត្តិការ Edit/Delete/Void លើទិន្នន័យទាំងអស់សម្រាប់សុវត្ថិភាព',
+    columns: [
+      { name: 'id', type: 'UUID', nullable: false, isPrimary: true, descriptionKhmer: 'លេខសម្គាល់ audit log', descriptionEnglish: 'Log ID' },
+      { name: 'table_name', type: 'VARCHAR(50)', nullable: false, descriptionKhmer: 'ឈ្មោះតារាងដែលត្រូវបានផ្លាស់ប្តូរ', descriptionEnglish: 'Target table name' },
+      { name: 'record_id', type: 'UUID', nullable: false, descriptionKhmer: 'ID នៃទិន្នន័យដែលបានផ្លាស់ប្តូរ', descriptionEnglish: 'Target record UUID' },
+      { name: 'action', type: 'VARCHAR(20)', nullable: false, descriptionKhmer: 'សកម្មភាព: INSERT, UPDATE, DELETE, VOID', descriptionEnglish: 'Action performed' },
+      { name: 'old_data', type: 'JSONB', nullable: true, descriptionKhmer: 'ទិន្នន័យចាស់មុនពេលផ្លាស់ប្តូរ', descriptionEnglish: 'Previous record snapshot' },
+      { name: 'new_data', type: 'JSONB', nullable: true, descriptionKhmer: 'ទិន្នន័យថ្មីក្រោយពេលផ្លាស់ប្តូរ', descriptionEnglish: 'New record snapshot' },
+      { name: 'changed_by', type: 'VARCHAR(150)', nullable: false, descriptionKhmer: 'ឈ្មោះ/អ៊ីមែលអ្នកធ្វើប្រតិបត្តិការ', descriptionEnglish: 'User email/name who made change' },
+      { name: 'changed_at', type: 'TIMESTAMP WITH TIME ZONE', nullable: false, descriptionKhmer: 'កាលបរិច្ឆេទនិងម៉ោងប្រតិបត្តិការ', descriptionEnglish: 'Change timestamp' },
+    ],
+    indexes: ['CREATE INDEX idx_audit_table_record ON audit_log(table_name, record_id);']
   }
 ];
 
@@ -266,7 +282,19 @@ CREATE TABLE IF NOT EXISTS loan_applications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 7. Create Notifications & SMS Log Table (តារាងប្រវត្តិសាររំលឹក)
+-- 7. Create Audit Log Table (តារាងកំណត់ត្រាសកម្មភាពកែប្រែនិងលុប)
+CREATE TABLE IF NOT EXISTS audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    table_name VARCHAR(50) NOT NULL,
+    record_id UUID NOT NULL,
+    action VARCHAR(20) NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE', 'VOID')),
+    old_data JSONB,
+    new_data JSONB,
+    changed_by VARCHAR(150) NOT NULL,
+    changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Create Notifications & SMS Log Table (តារាងប្រវត្តិសាររំលឹក)
 CREATE TABLE IF NOT EXISTS notifications_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     loan_id UUID REFERENCES loans(id) ON DELETE SET NULL,
@@ -285,4 +313,5 @@ CREATE INDEX IF NOT EXISTS idx_loans_borrower_type ON loans(borrower_type);
 CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 CREATE INDEX IF NOT EXISTS idx_schedules_due_date ON loan_repayment_schedules(due_date, status);
 CREATE INDEX IF NOT EXISTS idx_payments_loan ON loan_payments(loan_id);
+CREATE INDEX IF NOT EXISTS idx_audit_table_record ON audit_log(table_name, record_id);
 `;
