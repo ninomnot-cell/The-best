@@ -71,8 +71,10 @@ export function mapMemberFromRow(row: any): Member {
     totalDividendsEarned: Math.round(Number(row.total_savings ?? 0) * 0.12),
     activeLoanAmount: 0,
     address: row.address || '',
+    occupation: row.occupation || '',
+    email: row.email ? row.email.toLowerCase() : '',
     status: row.status || 'ACTIVE',
-    pin: '1234'
+    pin: row.pin || '1234'
   };
 }
 
@@ -80,15 +82,18 @@ export function mapMemberToRow(m: Partial<Member>): Record<string, any> {
   const row: Record<string, any> = {};
   if (m.id) row.id = ensureUUID(m.id);
   if (m.memberCode !== undefined) row.member_code = m.memberCode;
-  if (m.nameKhmer !== undefined) row.name_khmer = m.nameKhmer;
-  if (m.nameEnglish !== undefined) row.name_english = m.nameEnglish || null;
-  if (m.phone !== undefined) row.phone = m.phone;
-  if (m.idCardNumber !== undefined) row.id_card_number = m.idCardNumber;
+  if (m.nameKhmer !== undefined) row.name_khmer = typeof m.nameKhmer === 'string' ? m.nameKhmer.trim() : m.nameKhmer;
+  if (m.nameEnglish !== undefined) row.name_english = typeof m.nameEnglish === 'string' && m.nameEnglish.trim() ? m.nameEnglish.trim() : null;
+  if (m.phone !== undefined) row.phone = typeof m.phone === 'string' ? m.phone.trim() : m.phone;
+  if (m.idCardNumber !== undefined) row.id_card_number = typeof m.idCardNumber === 'string' ? m.idCardNumber.trim() : m.idCardNumber;
   if (m.joinDate !== undefined) row.join_date = formatDateStr(m.joinDate);
   if (m.role !== undefined) row.role = m.role;
   if (m.monthlyCommitment !== undefined) row.monthly_commitment = Number(m.monthlyCommitment);
   if (m.totalSavings !== undefined) row.total_savings = Number(m.totalSavings);
-  if (m.address !== undefined) row.address = m.address || null;
+  if (m.address !== undefined) row.address = typeof m.address === 'string' && m.address.trim() ? m.address.trim() : null;
+  if (m.occupation !== undefined) row.occupation = typeof m.occupation === 'string' && m.occupation.trim() ? m.occupation.trim() : null;
+  if (m.email !== undefined) row.email = typeof m.email === 'string' && m.email.trim() ? m.email.trim().toLowerCase() : null;
+  if (m.pin !== undefined) row.pin = typeof m.pin === 'string' && m.pin.trim() ? m.pin.trim() : '1234';
   if (m.status !== undefined) row.status = m.status;
   return row;
 }

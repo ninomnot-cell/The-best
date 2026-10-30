@@ -34,10 +34,13 @@ export const DATABASE_SCHEMA_TABLES: SchemaTable[] = [
       { name: 'monthly_commitment', type: 'DECIMAL(12,2)', nullable: false, descriptionKhmer: 'កាតព្វកិច្ចសន្សំប្រចាំខែ ($)', descriptionEnglish: 'Monthly savings target ($)' },
       { name: 'total_savings', type: 'DECIMAL(14,2)', nullable: false, descriptionKhmer: 'ទឹកប្រាក់សន្សំសរុបដែលបានបង់ចូល', descriptionEnglish: 'Accumulated total savings' },
       { name: 'address', type: 'TEXT', nullable: true, descriptionKhmer: 'អាសយដ្ឋានបច្ចុប្បន្ន', descriptionEnglish: 'Current residential address' },
+      { name: 'occupation', type: 'VARCHAR(100)', nullable: true, descriptionKhmer: 'មុខរបរ/អាជីវកម្ម', descriptionEnglish: 'Occupation/Business' },
+      { name: 'email', type: 'VARCHAR(100)', nullable: true, descriptionKhmer: 'អ៊ីមែលទំនាក់ទំនង (Unique)', descriptionEnglish: 'Email address' },
+      { name: 'pin', type: 'VARCHAR(20)', nullable: true, descriptionKhmer: 'លេខកូដសម្ងាត់ (PIN)', descriptionEnglish: 'Login PIN code' },
       { name: 'status', type: 'VARCHAR(20)', nullable: false, descriptionKhmer: 'ស្ថានភាពសមាជិក (ACTIVE/INACTIVE)', descriptionEnglish: 'Active or inactive status' },
       { name: 'created_at', type: 'TIMESTAMP WITH TIME ZONE', nullable: false, descriptionKhmer: 'កាលបរិច្ឆេទបង្កើតទិន្នន័យ', descriptionEnglish: 'Record creation timestamp' },
     ],
-    indexes: ['CREATE UNIQUE INDEX idx_members_code ON members(member_code);', 'CREATE INDEX idx_members_phone ON members(phone);']
+    indexes: ['CREATE UNIQUE INDEX idx_members_code ON members(member_code);', 'CREATE INDEX idx_members_phone ON members(phone);', 'CREATE UNIQUE INDEX idx_members_email ON members(email);']
   },
   {
     tableName: 'monthly_savings',
@@ -184,6 +187,9 @@ CREATE TABLE IF NOT EXISTS members (
     monthly_commitment DECIMAL(12,2) NOT NULL DEFAULT 100.00,
     total_savings DECIMAL(14,2) NOT NULL DEFAULT 0.00,
     address TEXT,
+    occupation VARCHAR(100),
+    email VARCHAR(100) UNIQUE,
+    pin VARCHAR(20) DEFAULT '1234',
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

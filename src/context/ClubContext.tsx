@@ -81,7 +81,7 @@ interface ClubContextType {
   quickLoginAsMember: (memberId: string) => void;
   logout: () => void;
   supabaseSignOut: () => Promise<void>;
-  updateMemberProfile: (memberId: string, updatedData: Partial<Member>) => Promise<void>;
+  updateMemberProfile: (memberId: string, updatedData: Partial<Member>) => Promise<{ success: boolean; error?: string }>;
   
   addMember: (member: Omit<Member, 'id' | 'memberCode' | 'totalSavings' | 'totalDividendsEarned' | 'activeLoanAmount'>) => Promise<void>;
   updateMember: (member: Member) => Promise<void>;
@@ -1059,18 +1059,32 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // 10. Update Member Profile
-  const updateMemberProfile = async (memberId: string, updatedData: Partial<Member>) => {
+  const updateMemberProfile = async (
+    memberId: string, 
+    updatedData: Partial<Member>
+  ): Promise<{ success: boolean; error?: string }> => {
     if (isSupabaseConfigured) {
-      const { error } = await supabase
+      const row = mapMemberToRow(updatedData);
+      const { data, error } = await supabase
         .from('members')
-        .update(mapMemberToRow(updatedData))
-        .eq('id', memberId);
+        .update(row)
+        .eq('id', memberId)
+        .select();
 
       if (error) {
         handleSupabaseError(error, 'Update Member Profile');
-        return;
+        return { success: false, error: error.message || error.details || 'មិនអាចកែប្រែព័ត៌មានបានទេ' };
       }
+
+      if (!data || data.length === 0) {
+        const noRowErr = 'មិនមានទិន្នន័យត្រូវបានធ្វើបច្ចុប្បន្នភាពទេ (0 rows updated)';
+        console.error('[Supabase Error - Update Member Profile]:', noRowErr);
+        alert(`បរាជ័យក្នុងការរក្សាទុកទិន្នន័យទៅ Supabase DB ៖\n${noRowErr}`);
+        return { success: false, error: noRowErr };
+      }
+
       await fetchDataFromSupabase();
+      return { success: true };
     } else {
       setMembers(prev => prev.map(m => {
         if (m.id === memberId) {
@@ -1082,6 +1096,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return m;
       }));
+      return { success: true };
     }
   };
 

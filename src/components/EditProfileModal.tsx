@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useClub } from '../context/ClubContext';
 import { Member } from '../types';
 import { 
@@ -12,7 +12,9 @@ import {
   Mail, 
   KeyRound, 
   DollarSign,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 interface EditProfileModalProps {
@@ -21,40 +23,91 @@ interface EditProfileModalProps {
 }
 
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({ member, onClose }) => {
-  const { updateMemberProfile } = useClub();
+  const { members, updateMemberProfile, refreshData } = useClub();
 
-  const [nameKhmer, setNameKhmer] = useState(member.nameKhmer);
+  const [nameKhmer, setNameKhmer] = useState(member.nameKhmer || '');
   const [nameEnglish, setNameEnglish] = useState(member.nameEnglish || '');
-  const [phone, setPhone] = useState(member.phone);
-  const [idCardNumber, setIdCardNumber] = useState(member.idCardNumber);
+  const [phone, setPhone] = useState(member.phone || '');
+  const [idCardNumber, setIdCardNumber] = useState(member.idCardNumber || '');
   const [occupation, setOccupation] = useState(member.occupation || '');
   const [address, setAddress] = useState(member.address || '');
   const [email, setEmail] = useState(member.email || '');
   const [monthlyCommitment, setMonthlyCommitment] = useState<number>(member.monthlyCommitment || 100);
   const [pin, setPin] = useState(member.pin || '1234');
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Re-prefill form if member prop changes
+  useEffect(() => {
+    setNameKhmer(member.nameKhmer || '');
+    setNameEnglish(member.nameEnglish || '');
+    setPhone(member.phone || '');
+    setIdCardNumber(member.idCardNumber || '');
+    setOccupation(member.occupation || '');
+    setAddress(member.address || '');
+    setEmail(member.email || '');
+    setMonthlyCommitment(member.monthlyCommitment || 100);
+    setPin(member.pin || '1234');
+    setErrorMessage(null);
+  }, [member]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nameKhmer || !phone || !idCardNumber) return;
+    setErrorMessage(null);
 
-    updateMemberProfile(member.id, {
-      nameKhmer,
-      nameEnglish,
-      phone,
-      idCardNumber,
-      occupation,
-      address,
-      email,
-      monthlyCommitment: Number(monthlyCommitment),
-      pin
-    });
+    const trimmedNameKhmer = nameKhmer.trim();
+    const trimmedPhone = phone.trim();
+    const trimmedIdCard = idCardNumber.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
-    setIsSaved(true);
-    setTimeout(() => {
-      setIsSaved(false);
-      onClose();
-    }, 1000);
+    if (!trimmedNameKhmer || !trimmedPhone || !trimmedIdCard) {
+      setErrorMessage('សូមបំពេញព័ត៌មានចាំបាច់ (ឈ្មោះ, ទូរស័ព្ទ, និងអត្តសញ្ញាណប័ណ្ណ)');
+      return;
+    }
+
+    // Email duplicate check
+    if (trimmedEmail) {
+      const duplicate = members.find(m => m.id !== member.id && m.email?.trim().toLowerCase() === trimmedEmail);
+      if (duplicate) {
+        setErrorMessage(`អ៊ីមែល "${trimmedEmail}" ត្រូវបានប្រើប្រាស់ដោយសមាជិក ${duplicate.nameKhmer} រួចហើយ! សូមប្រើប្រាស់អ៊ីមែលផ្សេង។`);
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await updateMemberProfile(member.id, {
+        nameKhmer: trimmedNameKhmer,
+        nameEnglish: nameEnglish.trim(),
+        phone: trimmedPhone,
+        idCardNumber: trimmedIdCard,
+        occupation: occupation.trim(),
+        address: address.trim(),
+        email: trimmedEmail,
+        monthlyCommitment: Number(monthlyCommitment),
+        pin: pin.trim()
+      });
+
+      if (!result.success) {
+        setErrorMessage(result.error || 'មិនអាចរក្សាទុកព័ត៌មានទៅកាន់ Supabase បានទេ');
+        setIsSubmitting(false);
+        return;
+      }
+
+      setIsSaved(true);
+      await refreshData();
+      setTimeout(() => {
+        setIsSaved(false);
+        onClose();
+      }, 1200);
+    } catch (err: any) {
+      console.error('[Edit Profile Exception]:', err);
+      setErrorMessage(err.message || 'មានបញ្ហាក្នុងការកែប្រែព័ត៌មាន');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -64,7 +117,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ member, onCl
         <div className="flex items-center justify-between pb-3 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-blue-100 text-[#00609C] flex items-center justify-center font-bold text-sm">
-              {nameKhmer.charAt(0)}
+              {nameKhmer.charAt(0) || 'S'}
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">
@@ -78,11 +131,23 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ member, onCl
 
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+            disabled={isSubmitting}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Error Alert */}
+        {errorMessage && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2 animate-shake">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">បរាជ័យក្នុងការរក្សាទុក ៖</p>
+              <p className="mt-0.5">{errorMessage}</p>
+            </div>
+          </div>
+        )}
 
         {isSaved ? (
           <div className="py-12 flex flex-col items-center justify-center space-y-3 text-center">
@@ -91,7 +156,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ member, onCl
               បានរក្សាទុកព័ត៌មានដោយជោគជ័យ!
             </div>
             <p className="text-xs text-slate-500">
-              ទិន្នន័យផ្ទាល់ខ្លួនរបស់អ្នកត្រូវបានធ្វើបច្ចុប្បន្នភាពរួចរាល់ហើយ។
+              ទិន្នន័យផ្ទាល់ខ្លួនរបស់អ្នកត្រូវបានធ្វើបច្ចុប្បន្នភាពក្នុង Supabase រួចរាល់ហើយ។
             </p>
           </div>
         ) : (
@@ -259,16 +324,27 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ member, onCl
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer"
+                disabled={isSubmitting}
+                className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer disabled:opacity-50"
               >
                 បោះបង់
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-white bg-[#00609C] hover:bg-[#004f80] rounded-lg font-bold shadow-xs transition-colors cursor-pointer"
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-white bg-[#00609C] hover:bg-[#004f80] rounded-lg font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
-                <span>រក្សាទុកព័ត៌មានកែប្រែ</span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>កំពុងរក្សាទុក...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>រក្សាទុកព័ត៌មានកែប្រែ</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
