@@ -2,7 +2,7 @@ import { Member, MonthlySavingRecord, Loan, LoanApplication, RepaymentScheduleIt
 
 export const INITIAL_MEMBERS: Member[] = [
   {
-    id: 'mem-001',
+    id: 'a1000000-0000-4000-8000-000000000001',
     memberCode: 'TBF-001',
     nameKhmer: 'សុខ ចិន្តា',
     nameEnglish: 'Sok Chenda',
@@ -21,7 +21,7 @@ export const INITIAL_MEMBERS: Member[] = [
     status: 'ACTIVE'
   },
   {
-    id: 'mem-002',
+    id: 'a1000000-0000-4000-8000-000000000002',
     memberCode: 'TBF-002',
     nameKhmer: 'ចាន់ វិសាល',
     nameEnglish: 'Chan Visal',
@@ -40,7 +40,7 @@ export const INITIAL_MEMBERS: Member[] = [
     status: 'ACTIVE'
   },
   {
-    id: 'mem-003',
+    id: 'a1000000-0000-4000-8000-000000000003',
     memberCode: 'TBF-003',
     nameKhmer: 'គឹម ស្រីនិច',
     nameEnglish: 'Kim Sreynich',
@@ -59,7 +59,7 @@ export const INITIAL_MEMBERS: Member[] = [
     status: 'ACTIVE'
   },
   {
-    id: 'mem-004',
+    id: 'a1000000-0000-4000-8000-000000000004',
     memberCode: 'TBF-004',
     nameKhmer: 'ហេង សុភ័ក្ត្រ',
     nameEnglish: 'Heng Sopheak',
@@ -78,7 +78,7 @@ export const INITIAL_MEMBERS: Member[] = [
     status: 'ACTIVE'
   },
   {
-    id: 'mem-005',
+    id: 'a1000000-0000-4000-8000-000000000005',
     memberCode: 'TBF-005',
     nameKhmer: 'លឹម គឹមហុង',
     nameEnglish: 'Lim Kimhong',
@@ -97,7 +97,7 @@ export const INITIAL_MEMBERS: Member[] = [
     status: 'ACTIVE'
   },
   {
-    id: 'mem-006',
+    id: 'a1000000-0000-4000-8000-000000000006',
     memberCode: 'TBF-006',
     nameKhmer: 'ស៊ន សុវណ្ណារ៉ា',
     nameEnglish: 'Sorn Sovannara',
@@ -116,7 +116,7 @@ export const INITIAL_MEMBERS: Member[] = [
     status: 'ACTIVE'
   },
   {
-    id: 'mem-007',
+    id: 'a1000000-0000-4000-8000-000000000007',
     memberCode: 'TBF-007',
     nameKhmer: 'កែវ សុភា',
     nameEnglish: 'Keo Sophea',
@@ -135,7 +135,7 @@ export const INITIAL_MEMBERS: Member[] = [
     status: 'ACTIVE'
   },
   {
-    id: 'mem-008',
+    id: 'a1000000-0000-4000-8000-000000000008',
     memberCode: 'TBF-008',
     nameKhmer: 'រស់ វណ្ណា',
     nameEnglish: 'Ros Vanna',
@@ -157,34 +157,34 @@ export const INITIAL_MEMBERS: Member[] = [
 
 export const INITIAL_SAVINGS_RECORDS: MonthlySavingRecord[] = [
   // 2026 Recent Records
-  { id: 'sav-26-10-1', memberId: 'mem-001', memberName: 'សុខ ចិន្តា', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892109', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់ទៀងទាត់' },
-  { id: 'sav-26-10-2', memberId: 'mem-002', memberName: 'ចាន់ វិសាល', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-04', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892044', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់តាម App' },
-  { id: 'sav-26-10-3', memberId: 'mem-003', memberName: 'គឹម ស្រីនិច', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892110', recordedBy: 'ហេង សុភ័ក្ត្រ', notes: 'បង់តាមកាលកំណត់' },
-  { id: 'sav-26-10-4', memberId: 'mem-004', memberName: 'ហេង សុភ័ក្ត្រ', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-06', paymentMethod: 'WING', referenceNumber: 'WG-440129', recordedBy: 'គឹម ស្រីនិច', notes: 'ផ្ទេរតាមវីង' },
-  { id: 'sav-26-10-5', memberId: 'mem-005', memberName: 'លឹម គឹមហុង', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892155', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់ទាន់ពេល' },
-  { id: 'sav-26-10-6', memberId: 'mem-006', memberName: 'ស៊ន សុវណ្ណារ៉ា', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-07', paymentMethod: 'CASH', referenceNumber: 'CSH-0081', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់សាច់ប្រាក់ផ្ទាល់' },
-  { id: 'sav-26-10-7', memberId: 'mem-007', memberName: 'កែវ សុភា', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-08', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892330', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់តាមកាលកំណត់' },
-  { id: 'sav-26-10-8', memberId: 'mem-008', memberName: 'រស់ វណ្ណា', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-10', paymentMethod: 'AC_LEDA', referenceNumber: 'ACL-33901', recordedBy: 'គឹម ស្រីនិច', notes: 'ផ្ទេរតាមអេស៊ីលីដា' },
+  { id: 'd4000000-0000-4000-8000-000000000101', memberId: 'a1000000-0000-4000-8000-000000000001', memberName: 'សុខ ចិន្តា', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892109', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់ទៀងទាត់' },
+  { id: 'd4000000-0000-4000-8000-000000000102', memberId: 'a1000000-0000-4000-8000-000000000002', memberName: 'ចាន់ វិសាល', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-04', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892044', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់តាម App' },
+  { id: 'd4000000-0000-4000-8000-000000000103', memberId: 'a1000000-0000-4000-8000-000000000003', memberName: 'គឹម ស្រីនិច', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892110', recordedBy: 'ហេង សុភ័ក្ត្រ', notes: 'បង់តាមកាលកំណត់' },
+  { id: 'd4000000-0000-4000-8000-000000000104', memberId: 'a1000000-0000-4000-8000-000000000004', memberName: 'ហេង សុភ័ក្ត្រ', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-06', paymentMethod: 'WING', referenceNumber: 'WG-440129', recordedBy: 'គឹម ស្រីនិច', notes: 'ផ្ទេរតាមវីង' },
+  { id: 'd4000000-0000-4000-8000-000000000105', memberId: 'a1000000-0000-4000-8000-000000000005', memberName: 'លឹម គឹមហុង', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892155', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់ទាន់ពេល' },
+  { id: 'd4000000-0000-4000-8000-000000000106', memberId: 'a1000000-0000-4000-8000-000000000006', memberName: 'ស៊ន សុវណ្ណារ៉ា', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-07', paymentMethod: 'CASH', referenceNumber: 'CSH-0081', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់សាច់ប្រាក់ផ្ទាល់' },
+  { id: 'd4000000-0000-4000-8000-000000000107', memberId: 'a1000000-0000-4000-8000-000000000007', memberName: 'កែវ សុភា', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-08', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-892330', recordedBy: 'គឹម ស្រីនិច', notes: 'បង់តាមកាលកំណត់' },
+  { id: 'd4000000-0000-4000-8000-000000000108', memberId: 'a1000000-0000-4000-8000-000000000008', memberName: 'រស់ វណ្ណា', year: 2026, month: 10, amount: 100, paymentDate: '2026-10-10', paymentMethod: 'AC_LEDA', referenceNumber: 'ACL-33901', recordedBy: 'គឹម ស្រីនិច', notes: 'ផ្ទេរតាមអេស៊ីលីដា' },
 
   // September 2026
-  { id: 'sav-26-09-1', memberId: 'mem-001', memberName: 'សុខ ចិន្តា', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771092', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-09-2', memberId: 'mem-002', memberName: 'ចាន់ វិសាល', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771093', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-09-3', memberId: 'mem-003', memberName: 'គឹម ស្រីនិច', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-06', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771120', recordedBy: 'ហេង សុភ័ក្ត្រ' },
-  { id: 'sav-26-09-4', memberId: 'mem-004', memberName: 'ហេង សុភ័ក្ត្រ', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771095', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-09-5', memberId: 'mem-005', memberName: 'លឹម គឹមហុង', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-07', paymentMethod: 'WING', referenceNumber: 'WG-399012', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-09-6', memberId: 'mem-006', memberName: 'ស៊ន សុវណ្ណារ៉ា', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-08', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771250', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-09-7', memberId: 'mem-007', memberName: 'កែវ សុភា', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771098', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-09-8', memberId: 'mem-008', memberName: 'រស់ វណ្ណា', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-09', paymentMethod: 'CASH', referenceNumber: 'CSH-0073', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000201', memberId: 'a1000000-0000-4000-8000-000000000001', memberName: 'សុខ ចិន្តា', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771092', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000202', memberId: 'a1000000-0000-4000-8000-000000000002', memberName: 'ចាន់ វិសាល', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771093', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000203', memberId: 'a1000000-0000-4000-8000-000000000003', memberName: 'គឹម ស្រីនិច', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-06', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771120', recordedBy: 'ហេង សុភ័ក្ត្រ' },
+  { id: 'd4000000-0000-4000-8000-000000000204', memberId: 'a1000000-0000-4000-8000-000000000004', memberName: 'ហេង សុភ័ក្ត្រ', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771095', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000205', memberId: 'a1000000-0000-4000-8000-000000000005', memberName: 'លឹម គឹមហុង', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-07', paymentMethod: 'WING', referenceNumber: 'WG-399012', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000206', memberId: 'a1000000-0000-4000-8000-000000000006', memberName: 'ស៊ន សុវណ្ណារ៉ា', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-08', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771250', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000207', memberId: 'a1000000-0000-4000-8000-000000000007', memberName: 'កែវ សុភា', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-771098', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000208', memberId: 'a1000000-0000-4000-8000-000000000008', memberName: 'រស់ វណ្ណា', year: 2026, month: 9, amount: 100, paymentDate: '2026-09-09', paymentMethod: 'CASH', referenceNumber: 'CSH-0073', recordedBy: 'គឹម ស្រីនិច' },
 
   // August 2026
-  { id: 'sav-26-08-1', memberId: 'mem-001', memberName: 'សុខ ចិន្តា', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-04', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65001', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-08-2', memberId: 'mem-002', memberName: 'ចាន់ វិសាល', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65002', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-08-3', memberId: 'mem-003', memberName: 'គឹម ស្រីនិច', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65003', recordedBy: 'ហេង សុភ័ក្ត្រ' },
-  { id: 'sav-26-08-4', memberId: 'mem-004', memberName: 'ហេង សុភ័ក្ត្រ', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-06', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65004', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-08-5', memberId: 'mem-005', memberName: 'លឹម គឹមហុង', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65005', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-08-6', memberId: 'mem-006', memberName: 'ស៊ន សុវណ្ណារ៉ា', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-07', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65006', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-08-7', memberId: 'mem-007', memberName: 'កែវ សុភា', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65007', recordedBy: 'គឹម ស្រីនិច' },
-  { id: 'sav-26-08-8', memberId: 'mem-008', memberName: 'រស់ វណ្ណា', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-08', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65008', recordedBy: 'គឹម ស្រីនិច' }
+  { id: 'd4000000-0000-4000-8000-000000000301', memberId: 'a1000000-0000-4000-8000-000000000001', memberName: 'សុខ ចិន្តា', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-04', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65001', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000302', memberId: 'a1000000-0000-4000-8000-000000000002', memberName: 'ចាន់ វិសាល', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65002', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000303', memberId: 'a1000000-0000-4000-8000-000000000003', memberName: 'គឹម ស្រីនិច', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65003', recordedBy: 'ហេង សុភ័ក្ត្រ' },
+  { id: 'd4000000-0000-4000-8000-000000000304', memberId: 'a1000000-0000-4000-8000-000000000004', memberName: 'ហេង សុភ័ក្ត្រ', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-06', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65004', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000305', memberId: 'a1000000-0000-4000-8000-000000000005', memberName: 'លឹម គឹមហុង', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65005', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000306', memberId: 'a1000000-0000-4000-8000-000000000006', memberName: 'ស៊ន សុវណ្ណារ៉ា', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-07', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65006', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000307', memberId: 'a1000000-0000-4000-8000-000000000007', memberName: 'កែវ សុភា', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-05', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65007', recordedBy: 'គឹម ស្រីនិច' },
+  { id: 'd4000000-0000-4000-8000-000000000308', memberId: 'a1000000-0000-4000-8000-000000000008', memberName: 'រស់ វណ្ណា', year: 2026, month: 8, amount: 100, paymentDate: '2026-08-08', paymentMethod: 'ABA_PAY', referenceNumber: 'ABA-65008', recordedBy: 'គឹម ស្រីនិច' }
 ];
 
 export function generateAmortizationSchedule(
@@ -210,27 +210,24 @@ export function generateAmortizationSchedule(
     let endBalance = 0;
 
     if (method === 'FLAT') {
-      // 1. ការប្រាក់ថេរ: Fixed interest every month calculated on original principal
       p = (i === termMonths) 
         ? Math.max(0, Math.round(currentBalance * 100) / 100) 
         : equalPrincipal;
       interest = flatMonthlyInterest;
       endBalance = Math.max(0, Math.round((currentBalance - p) * 100) / 100);
     } else if (method === 'DECLINING') {
-      // 2. ការប្រាក់ថយចុះ: Interest calculated on current reducing balance
       p = (i === termMonths) 
         ? Math.max(0, Math.round(currentBalance * 100) / 100) 
         : equalPrincipal;
       interest = Math.round((currentBalance * (monthlyRatePercent / 100)) * 100) / 100;
       endBalance = Math.max(0, Math.round((currentBalance - p) * 100) / 100);
     } else {
-      // 3. បង់តែការប្រាក់ប្រចាំខែ និងបង់ដើមចុងគ្រា (INTEREST_ONLY / Balloon)
       if (i === termMonths) {
-        p = principal; // pay all principal at the end
+        p = principal;
         interest = Math.round((principal * (monthlyRatePercent / 100)) * 100) / 100;
         endBalance = 0;
       } else {
-        p = 0; // interest only
+        p = 0;
         interest = Math.round((principal * (monthlyRatePercent / 100)) * 100) / 100;
         endBalance = principal;
       }
@@ -255,8 +252,7 @@ export function generateAmortizationSchedule(
   return schedule;
 }
 
-// Generate Realistic Loans demonstrating the 3 calculation methods
-// Loan 1: Internal Member Loan with DECLINING interest rate (1.2%/mo)
+// Schedules for initial loans
 const internalSchedule = generateAmortizationSchedule(1500, 1.2, 5, '2026-07-10', 'DECLINING');
 internalSchedule[0].status = 'PAID';
 internalSchedule[0].paidDate = '2026-08-10';
@@ -267,10 +263,7 @@ internalSchedule[1].receiptNumber = 'LN-PAY-002';
 internalSchedule[2].status = 'PAID';
 internalSchedule[2].paidDate = '2026-10-10';
 internalSchedule[2].receiptNumber = 'LN-PAY-003';
-internalSchedule[3].status = 'PENDING';
-internalSchedule[4].status = 'PENDING';
 
-// Loan 2: External Borrower Loan with FLAT interest rate (2.5%/mo)
 const externalSchedule1 = generateAmortizationSchedule(2400, 2.5, 6, '2026-06-28', 'FLAT');
 externalSchedule1[0].status = 'PAID';
 externalSchedule1[0].paidDate = '2026-07-28';
@@ -281,11 +274,7 @@ externalSchedule1[1].receiptNumber = 'LN-PAY-102';
 externalSchedule1[2].status = 'PAID';
 externalSchedule1[2].paidDate = '2026-09-28';
 externalSchedule1[2].receiptNumber = 'LN-PAY-103';
-externalSchedule1[3].status = 'PENDING'; // Due 2026-10-28!
-externalSchedule1[4].status = 'PENDING';
-externalSchedule1[5].status = 'PENDING';
 
-// Loan 3: External Borrower Loan with INTEREST_ONLY monthly & balloon principal (2.5%/mo)
 const externalSchedule2 = generateAmortizationSchedule(3000, 2.5, 6, '2026-05-15', 'INTEREST_ONLY');
 externalSchedule2[0].status = 'PAID';
 externalSchedule2[0].paidDate = '2026-06-15';
@@ -296,14 +285,13 @@ externalSchedule2[2].paidDate = '2026-08-15';
 externalSchedule2[3].status = 'PAID';
 externalSchedule2[3].paidDate = '2026-09-15';
 externalSchedule2[4].status = 'OVERDUE';
-externalSchedule2[5].status = 'PENDING';
 
 export const INITIAL_LOANS: Loan[] = [
   {
-    id: 'loan-001',
+    id: 'b2000000-0000-4000-8000-000000000001',
     loanCode: 'LN-MEM-2026-001',
     borrowerType: 'MEMBER',
-    borrowerId: 'mem-003',
+    borrowerId: 'a1000000-0000-4000-8000-000000000003', // Kim Sreynich
     borrowerName: 'គឹម ស្រីនិច',
     borrowerPhone: '087 665 432',
     borrowerIdCard: '030495867',
@@ -318,7 +306,6 @@ export const INITIAL_LOANS: Loan[] = [
     purpose: 'ពង្រីកដើមទុនហាងលក់គ្រឿងទេសខ្នាតតូច',
     guarantorName: 'សុខ ចិន្តា (ប្រធានក្លឹប)',
     guarantorPhone: '012 889 901',
-    guarantorRelationship: 'សមាជិកក្លឹប និងជាប្រធាន',
     collateralDescription: 'ធានាដោយទឹកប្រាក់សន្សំក្នុងក្លឹប ($2,800)',
     status: 'ACTIVE',
     totalInterest: 54,
@@ -332,7 +319,7 @@ export const INITIAL_LOANS: Loan[] = [
     createdAt: '2026-07-08'
   },
   {
-    id: 'loan-002',
+    id: 'b2000000-0000-4000-8000-000000000002',
     loanCode: 'LN-EXT-2026-002',
     borrowerType: 'EXTERNAL',
     borrowerName: 'អ៊ុក សារ៉ាត់',
@@ -349,7 +336,6 @@ export const INITIAL_LOANS: Loan[] = [
     purpose: 'ទិញសម្ភារ និងគ្រឿងបន្លាស់ម៉ូតូសម្រាប់ស្តុកលក់',
     guarantorName: 'ចាន់ វិសាល',
     guarantorPhone: '098 776 543',
-    guarantorRelationship: 'សមាជិកក្លឹបធានា (បងប្អូនជីដូនមួយ)',
     collateralDescription: 'កាតគ្រីម៉ូតូ Honda Dream 2024 និងសំបុត្រកំណើតច្បាប់ដើម',
     status: 'ACTIVE',
     totalInterest: 360,
@@ -363,7 +349,7 @@ export const INITIAL_LOANS: Loan[] = [
     createdAt: '2026-06-25'
   },
   {
-    id: 'loan-003',
+    id: 'b2000000-0000-4000-8000-000000000003',
     loanCode: 'LN-EXT-2026-003',
     borrowerType: 'EXTERNAL',
     borrowerName: 'ប៉ែន ធីតា',
@@ -380,7 +366,6 @@ export const INITIAL_LOANS: Loan[] = [
     purpose: 'ទិញសម្លៀកបំពាក់នាំចូលសម្រាប់រដូវបុណ្យភ្ជុំបិណ្ឌ',
     guarantorName: 'លឹម គឹមហុង',
     guarantorPhone: '070 445 667',
-    guarantorRelationship: 'មិត្តភក្តិធានា',
     collateralDescription: 'ប្លង់ដីទន់ភូមិព្រែកឯង និងប័ណ្ណបើកបររថយន្ត',
     status: 'OVERDUE',
     totalInterest: 450,
@@ -397,9 +382,9 @@ export const INITIAL_LOANS: Loan[] = [
 
 export const INITIAL_APPLICATIONS: LoanApplication[] = [
   {
-    id: 'app-001',
+    id: 'c3000000-0000-4000-8000-000000000001',
     applicantType: 'MEMBER',
-    memberId: 'mem-005',
+    memberId: 'a1000000-0000-4000-8000-000000000005', // Lim Kimhong
     applicantName: 'លឹម គឹមហុង',
     applicantPhone: '070 445 667',
     applicantIdCard: '050697889',
@@ -416,10 +401,10 @@ export const INITIAL_APPLICATIONS: LoanApplication[] = [
     guarantorRelationship: 'សមាជិកក្លឹប',
     appliedDate: '2026-10-24',
     status: 'PENDING',
-    notes: 'សមាជិកមានប្រវត្តិសន្សំល្អទៀងទាត់ ស្នើអត្រាការប្រាក់ ១.២% គិតបែបការប្រាក់ថយចុះ'
+    notes: 'សមាជិកមានប្រវត្តិសន្សំល្អទៀងទាត់'
   },
   {
-    id: 'app-002',
+    id: 'c3000000-0000-4000-8000-000000000002',
     applicantType: 'EXTERNAL',
     applicantName: 'សេង ពិសិដ្ឋ',
     applicantPhone: '011 223 344',
@@ -440,4 +425,3 @@ export const INITIAL_APPLICATIONS: LoanApplication[] = [
     notes: 'ស្នើសុំអត្រាការប្រាក់ ២.៥% បង់តែការប្រាក់ប្រចាំខែ និងបង់ដើមចុងគ្រា'
   }
 ];
-
