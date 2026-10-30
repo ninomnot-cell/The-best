@@ -14,6 +14,7 @@ import { LoanApplicationForm } from './components/LoanApplicationForm';
 import { NotificationsManager } from './components/NotificationsManager';
 import { DatabaseSchemaView } from './components/DatabaseSchemaView';
 import { DividendsCalculator } from './components/DividendsCalculator';
+import { OfficerHandoverPage } from './components/OfficerHandoverPage';
 import { LoginModal } from './components/LoginModal';
 import { SupabaseAuthPage } from './components/SupabaseAuthPage';
 import { RecordRepaymentModal } from './components/RecordRepaymentModal';
@@ -33,6 +34,7 @@ const MainContent: React.FC = () => {
       {currentTab === 'reminders' && <NotificationsManager />}
       {currentTab === 'database' && <DatabaseSchemaView />}
       {currentTab === 'dividends' && <DividendsCalculator />}
+      {currentTab === 'handover' && <OfficerHandoverPage />}
     </main>
   );
 };

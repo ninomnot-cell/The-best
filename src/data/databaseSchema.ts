@@ -306,6 +306,16 @@ CREATE TABLE IF NOT EXISTS notifications_log (
     status VARCHAR(20) NOT NULL DEFAULT 'DELIVERED'
 );
 
+-- 9. Create Officer Terms Table (តារាងប្រវត្តិអាណត្តិប្រធាន និងបេឡាធិការ)
+CREATE TABLE IF NOT EXISTS officer_terms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    member_id UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('ប្រធានក្លឹប', 'បេឡាធិការ')),
+    term_start DATE NOT NULL,
+    term_end DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Optimized Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_members_role ON members(role);
 CREATE INDEX IF NOT EXISTS idx_savings_member_date ON monthly_savings(member_id, payment_date);
@@ -314,4 +324,5 @@ CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 CREATE INDEX IF NOT EXISTS idx_schedules_due_date ON loan_repayment_schedules(due_date, status);
 CREATE INDEX IF NOT EXISTS idx_payments_loan ON loan_payments(loan_id);
 CREATE INDEX IF NOT EXISTS idx_audit_table_record ON audit_log(table_name, record_id);
+CREATE INDEX IF NOT EXISTS idx_officer_terms_role ON officer_terms(role, term_start);
 `;

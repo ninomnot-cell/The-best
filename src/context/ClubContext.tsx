@@ -6,7 +6,8 @@ import {
   LoanApplication, 
   NotificationReminder, 
   ClubStats,
-  LoanPayment
+  LoanPayment,
+  OfficerTerm
 } from '../types';
 import { 
   INITIAL_MEMBERS, 
@@ -31,6 +32,8 @@ import {
   mapApplicationToRow,
   mapLoanPaymentFromRow,
   mapLoanPaymentToRow,
+  mapOfficerTermFromRow,
+  mapOfficerTermToRow,
   insertAuditLog
 } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
@@ -70,7 +73,10 @@ interface ClubContextType {
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
   
+  officerTerms: import('../types').OfficerTerm[];
+  
   // Actions
+  transferOfficeRole: (role: 'ប្រធានក្លឹប' | 'បេឡាធិការ', newMemberId: string, effectiveDate: string) => Promise<{ success: boolean; error?: string }>;
   login: (phoneOrCode: string, pin?: string) => boolean;
   quickLoginAsMember: (memberId: string) => void;
   logout: () => void;
@@ -110,6 +116,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loans, setLoans] = useState<Loan[]>([]);
   const [applications, setApplications] = useState<LoanApplication[]>([]);
   const [payments, setPayments] = useState<LoanPayment[]>([]);
+  const [officerTerms, setOfficerTerms] = useState<OfficerTerm[]>([]);
   const [sentReminderIds, setSentReminderIds] = useState<string[]>([]);
   
   const [supabaseSession, setSupabaseSession] = useState<Session | null>(null);
@@ -254,6 +261,41 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!notifErr && notifRows) {
         setSentReminderIds(notifRows.map(n => String(n.id || n.loan_id)));
+      }
+
+      // 7. Officer terms
+      const { data: termRows, error: termErr } = await supabase
+        .from('officer_terms')
+        .select('*')
+        .order('term_start', { ascending: false });
+
+      if (!termErr && termRows && termRows.length > 0) {
+        setOfficerTerms(termRows.map(r => mapOfficerTermFromRow(r, memberMap)));
+      } else {
+        const pres = mappedMembers.find(m => m.role === 'ប្រធានក្លឹប');
+        const treas = mappedMembers.find(m => m.role === 'បេឡាធិការ');
+        const defaultTerms: OfficerTerm[] = [];
+        if (pres) {
+          defaultTerms.push({
+            id: crypto.randomUUID(),
+            memberId: pres.id,
+            memberName: pres.nameKhmer,
+            role: 'ប្រធានក្លឹប',
+            termStart: '2024-01-01',
+            termEnd: null
+          });
+        }
+        if (treas) {
+          defaultTerms.push({
+            id: crypto.randomUUID(),
+            memberId: treas.id,
+            memberName: treas.nameKhmer,
+            role: 'បេឡាធិការ',
+            termStart: '2024-01-01',
+            termEnd: null
+          });
+        }
+        setOfficerTerms(defaultTerms);
       }
 
     } catch (err: any) {
@@ -1043,6 +1085,96 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // 11. Transfer Office Role (ប្តូរមុខតំណែង)
+  const transferOfficeRole = async (
+    role: 'ប្រធានក្លឹប' | 'បេឡាធិការ', 
+    newMemberId: string, 
+    effectiveDate: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const p_effective = formatDateStr(effectiveDate);
+    const p_new_member_id = ensureUUID(newMemberId);
+
+    if (isSupabaseConfigured) {
+      console.log(`Calling RPC transfer_office with p_role="${role}", p_new_member_id="${p_new_member_id}", p_effective="${p_effective}"`);
+      
+      const { data, error } = await supabase.rpc('transfer_office', {
+        p_role: role,
+        p_new_member_id: p_new_member_id,
+        p_effective: p_effective
+      });
+
+      if (error) {
+        console.error('[Supabase RPC transfer_office Error]:', error);
+        const errText = error.message || error.details || error.hint || JSON.stringify(error);
+
+        // Fallback: Direct database updates to members and officer_terms so data is saved in Supabase
+        try {
+          await supabase
+            .from('officer_terms')
+            .update({ term_end: p_effective })
+            .eq('role', role)
+            .is('term_end', null);
+
+          await supabase
+            .from('officer_terms')
+            .insert([{
+              id: crypto.randomUUID(),
+              member_id: p_new_member_id,
+              role: role,
+              term_start: p_effective,
+              term_end: null
+            }]);
+
+          const currentOfficer = members.find(m => m.role === role);
+          if (currentOfficer) {
+            await supabase.from('members').update({ role: 'សមាជិក' }).eq('id', currentOfficer.id);
+          }
+
+          const { error: updateMemErr } = await supabase.from('members').update({ role: role }).eq('id', p_new_member_id);
+          if (updateMemErr) {
+            return { success: false, error: `${errText} (Fallback failed: ${updateMemErr.message})` };
+          }
+
+          await insertAuditLog('members', p_new_member_id, 'UPDATE', { role: currentOfficer?.role }, { role }, currentUser?.email || 'President');
+          await fetchDataFromSupabase();
+          
+          return { success: true };
+        } catch (fbErr: any) {
+          return { success: false, error: errText };
+        }
+      }
+
+      await fetchDataFromSupabase();
+      return { success: true };
+    } else {
+      // Local fallback
+      const oldOfficer = members.find(m => m.role === role);
+      const newMember = members.find(m => m.id === newMemberId);
+      if (oldOfficer && newMember) {
+        setMembers(prev => prev.map(m => {
+          if (m.id === oldOfficer.id) return { ...m, role: 'សមាជិក' };
+          if (m.id === newMemberId) return { ...m, role: role };
+          return m;
+        }));
+        setOfficerTerms(prev => [
+          {
+            id: crypto.randomUUID(),
+            memberId: newMemberId,
+            memberName: newMember.nameKhmer,
+            role: role,
+            termStart: p_effective,
+            termEnd: null
+          },
+          ...prev.map(t => (t.role === role && !t.termEnd) ? { ...t, termEnd: p_effective } : t)
+        ]);
+        if (currentUser?.id === oldOfficer.id) {
+          setCurrentUser(prev => prev ? { ...prev, role: 'សមាជិក' } : null);
+        }
+      }
+      return { success: true };
+    }
+  };
+
   const login = (phoneOrCode: string, pin?: string): boolean => {
     const cleanSearch = phoneOrCode.replace(/\s+/g, '').toLowerCase();
     const found = members.find(m => {
@@ -1126,6 +1258,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabaseError,
       isLoginModalOpen,
       setIsLoginModalOpen,
+      officerTerms,
+      transferOfficeRole,
       login,
       quickLoginAsMember,
       logout,

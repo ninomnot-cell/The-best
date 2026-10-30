@@ -5,7 +5,8 @@ import {
   Loan, 
   RepaymentScheduleItem, 
   LoanApplication,
-  LoanPayment
+  LoanPayment,
+  OfficerTerm
 } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -321,7 +322,32 @@ export function mapApplicationToRow(a: Partial<LoanApplication>): Record<string,
 }
 
 // ==========================================
-// 7. AUDIT LOG HELPER
+// 7. OFFICER TERMS MAPPERS
+// ==========================================
+export function mapOfficerTermFromRow(row: any, memberMap: Record<string, Member> = {}): OfficerTerm {
+  const member = memberMap[row.member_id];
+  return {
+    id: row.id,
+    memberId: row.member_id,
+    memberName: member ? member.nameKhmer : (row.member_name || 'សមាជិក'),
+    role: row.role || 'ប្រធានក្លឹប',
+    termStart: formatDateStr(row.term_start),
+    termEnd: row.term_end ? formatDateStr(row.term_end) : null
+  };
+}
+
+export function mapOfficerTermToRow(t: Partial<OfficerTerm>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (t.id) row.id = ensureUUID(t.id);
+  if (t.memberId) row.member_id = ensureUUID(t.memberId);
+  if (t.role !== undefined) row.role = t.role;
+  if (t.termStart !== undefined) row.term_start = formatDateStr(t.termStart);
+  if (t.termEnd !== undefined) row.term_end = t.termEnd ? formatDateStr(t.termEnd) : null;
+  return row;
+}
+
+// ==========================================
+// 8. AUDIT LOG HELPER
 // ==========================================
 export async function insertAuditLog(
   tableName: string,

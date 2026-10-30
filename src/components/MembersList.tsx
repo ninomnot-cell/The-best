@@ -600,9 +600,7 @@ export const MembersList: React.FC = () => {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
                   >
                     <option value="សមាជិក">សមាជិក</option>
-                    <option value="ប្រធានក្លឹប">ប្រធានក្លឹប</option>
                     <option value="អនុប្រធាន">អនុប្រធាន</option>
-                    <option value="បេឡាធិការ">បេឡាធិការ</option>
                     <option value="គណនេយ្យករ">គណនេយ្យករ</option>
                   </select>
                 </div>

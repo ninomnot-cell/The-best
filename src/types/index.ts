@@ -159,3 +159,12 @@ export interface ClubStats {
   overdueLoansCount: number;
   upcomingDueCount: number;
 }
+
+export interface OfficerTerm {
+  id: string;
+  memberId: string;
+  memberName?: string;
+  role: 'ប្រធានក្លឹប' | 'បេឡាធិការ';
+  termStart: string;
+  termEnd?: string | null;
+}

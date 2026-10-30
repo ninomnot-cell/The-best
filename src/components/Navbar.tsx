@@ -1,6 +1,6 @@
 import React from 'react';
 import { useClub } from '../context/ClubContext';
-import { Bell, Database, PlusCircle } from 'lucide-react';
+import { Bell, Database, PlusCircle, Award } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { 
@@ -96,6 +96,18 @@ export const Navbar: React.FC = () => {
               }`}
             >
               ការប្រាក់ & ភាគលាភ
+            </button>
+
+            <button
+              onClick={() => setCurrentTab('handover')}
+              className={`inline-flex items-center gap-1 hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
+                currentTab === 'handover'
+                  ? 'border-[#00609C] text-[#00609C] font-semibold'
+                  : 'border-transparent'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5 text-amber-600" />
+              <span>ប្តូរមុខតំណែង</span>
             </button>
 
             <button

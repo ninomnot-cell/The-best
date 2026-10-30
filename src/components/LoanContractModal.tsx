@@ -9,14 +9,30 @@ interface LoanContractModalProps {
 }
 
 export const LoanContractModal: React.FC<LoanContractModalProps> = ({ loan, onClose }) => {
-  const { members } = useClub();
+  const { members, officerTerms } = useClub();
 
-  // 1. Read current club officers from the Supabase members table by role
-  const president = members.find(m => m.role === 'ប្រធានក្លឹប' && m.status === 'ACTIVE') || 
-                    members.find(m => m.role === 'ប្រធានក្លឹប');
+  // Find officers in office on loan's start_date from officer_terms
+  // Rule: term_start <= loan.startDate AND (!term_end OR loan.startDate < term_end)
+  const presTerm = officerTerms.find(t => 
+    t.role === 'ប្រធានក្លឹប' && 
+    t.termStart <= loan.startDate && 
+    (!t.termEnd || loan.startDate < t.termEnd)
+  );
 
-  const treasurer = members.find(m => m.role === 'បេឡាធិការ' && m.status === 'ACTIVE') || 
-                    members.find(m => m.role === 'បេឡាធិការ');
+  const treasTerm = officerTerms.find(t => 
+    t.role === 'បេឡាធិការ' && 
+    t.termStart <= loan.startDate && 
+    (!t.termEnd || loan.startDate < t.termEnd)
+  );
+
+  // Get member details for matching officer terms, fallback to current officers if no match
+  const president = presTerm 
+    ? (members.find(m => m.id === presTerm.memberId) || { nameKhmer: presTerm.memberName || '', phone: '' })
+    : (members.find(m => m.role === 'ប្រធានក្លឹប' && m.status === 'ACTIVE') || members.find(m => m.role === 'ប្រធានក្លឹប'));
+
+  const treasurer = treasTerm 
+    ? (members.find(m => m.id === treasTerm.memberId) || { nameKhmer: treasTerm.memberName || '', phone: '' })
+    : (members.find(m => m.role === 'បេឡាធិការ' && m.status === 'ACTIVE') || members.find(m => m.role === 'បេឡាធិការ'));
 
   const accountant = members.find(m => m.role === 'គណនេយ្យករ' && m.status === 'ACTIVE') || 
                      members.find(m => m.role === 'គណនេយ្យករ');
