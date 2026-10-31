@@ -269,3 +269,26 @@ export interface AuditLogRecord {
   changedBy: string;
   changedAt: string;
 }
+
+export interface OverdueInstallmentView {
+  schedule_id: string;
+  loan_id: string;
+  loan_code: string;
+  borrower_name: string;
+  borrower_phone: string;
+  installment_number: number;
+  due_date: string;
+  total_due: number;
+  days_late: number;
+  late_fee: number;
+}
+
+export interface NotificationLogRecord {
+  id?: string;
+  loanId: string;
+  recipientName: string;
+  recipientPhone: string;
+  messageKhmer: string;
+  channel: 'TELEGRAM_MANUAL' | 'SMS_MANUAL' | 'SMS';
+  createdAt?: string;
+}

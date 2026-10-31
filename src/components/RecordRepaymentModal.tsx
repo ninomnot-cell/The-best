@@ -26,7 +26,8 @@ export const RecordRepaymentModal: React.FC = () => {
     setPreselectedLoanForRepayment,
     recordLoanPaymentTransaction,
     supabaseUser,
-    currentUser
+    currentUser,
+    clubSettings
   } = useClub();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -101,6 +102,29 @@ export const RecordRepaymentModal: React.FC = () => {
     if (!selectedLoan) return null;
     return selectedLoan.schedule.find(s => s.installmentNumber === selectedInstallmentNumber) || null;
   }, [selectedLoan, selectedInstallmentNumber]);
+
+  // Calculate Automatic Late Fee based on clubSettings
+  const calculatedLateFee = useMemo(() => {
+    if (!selectedInstallment || selectedInstallment.status === 'PAID') return 0;
+    const today = new Date(paymentDate || '2026-10-29');
+    const due = new Date(selectedInstallment.dueDate);
+    const diffDays = Math.ceil((today.getTime() - due.getTime()) / (1000 * 3600 * 24));
+    const grace = clubSettings.graceDays || 0;
+    if (diffDays <= grace) return 0;
+
+    const daysLate = diffDays;
+    const feeType = clubSettings.lateFeeType || 'NONE';
+    const feeVal = clubSettings.lateFeeValue || 0;
+
+    if (feeType === 'FLAT') return feeVal;
+    if (feeType === 'PERCENT_PER_DAY') return Math.round(selectedInstallment.totalDue * (feeVal / 100) * daysLate * 100) / 100;
+    if (feeType === 'PERCENT_PER_MONTH') return Math.round(selectedInstallment.totalDue * (feeVal / 100) * (daysLate / 30) * 100) / 100;
+    return 0;
+  }, [selectedInstallment, paymentDate, clubSettings]);
+
+  useEffect(() => {
+    setLateFee(String(calculatedLateFee));
+  }, [calculatedLateFee]);
 
   // When selected loan changes, auto-select oldest unpaid installment
   const handleLoanChange = (loanId: string) => {
@@ -183,6 +207,13 @@ export const RecordRepaymentModal: React.FC = () => {
     }
 
     const lateFeeVal = parseFloat(lateFee) || 0;
+    const defaultCalculatedLateFee = calculatedLateFee;
+
+    // Requirement 1: If officer changes late fee from calculated amount, require typing reason in notes
+    if (Math.abs(lateFeeVal - defaultCalculatedLateFee) > 0.01 && !notes.trim()) {
+      setErrorMessage(`អ្នកបានកែប្រែថ្លៃពិន័យពី $${defaultCalculatedLateFee} ទៅ $${lateFeeVal}។ សូមបញ្ចូលមូលហេតុនៃការកែប្រែក្នុងកំណត់សម្គាល់ (Notes)!`);
+      return;
+    }
 
     // Calculate principal and interest breakdown
     let principalPaid = 0;

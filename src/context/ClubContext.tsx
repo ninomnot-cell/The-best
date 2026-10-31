@@ -115,6 +115,7 @@ interface ClubContextType {
   loanApprovals: LoanApproval[];
   memberExits: MemberExit[];
   auditLogs: AuditLogRecord[];
+  overdueInstallmentViews: OverdueInstallmentView[];
 
   // Permission Helpers
   isOfficer: boolean;
@@ -143,7 +144,7 @@ interface ClubContextType {
   rejectLoanApplication: (applicationId: string) => Promise<void>;
   recordLoanPaymentTransaction: (paymentData: Omit<LoanPayment, 'id'>) => Promise<boolean>;
   voidLoanPayment: (paymentId: string) => Promise<boolean>;
-  markReminderSent: (notificationId: string) => Promise<void>;
+  markReminderSent: (loanId: string, recipientName: string, recipientPhone: string, messageKhmer: string, channel?: 'TELEGRAM_MANUAL' | 'SMS_MANUAL' | 'SMS') => Promise<void>;
   refreshData: () => Promise<void>;
   resetToDefaultData: () => Promise<void>;
 
@@ -196,6 +197,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedLoanForSchedule, setSelectedLoanForSchedule] = useState<Loan | null>(null);
   const [selectedLoanForContract, setSelectedLoanForContract] = useState<Loan | null>(null);
   const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<Member | null>(null);
+
+  const [overdueInstallmentViews, setOverdueInstallmentViews] = useState<OverdueInstallmentView[]>([]);
 
   // Repayment Modal & Print Receipts State
   const [isRepaymentModalOpen, setIsRepaymentModalOpen] = useState<boolean>(false);
@@ -409,6 +412,14 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (logRows) setAuditLogs(logRows.map(mapAuditLogFromRow));
       } catch (e) {
         console.warn('audit_log fetch warning:', e);
+      }
+
+      // 15. v_overdue_installments View
+      try {
+        const { data: viewRows } = await supabase.from('v_overdue_installments').select('*');
+        if (viewRows) setOverdueInstallmentViews(viewRows);
+      } catch (e) {
+        console.warn('v_overdue_installments fetch warning:', e);
       }
 
     } catch (err: any) {
@@ -1116,30 +1127,32 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // 9. Mark Reminder Sent
-  const markReminderSent = async (notificationId: string) => {
-    if (!sentReminderIds.includes(notificationId)) {
-      if (isSupabaseConfigured) {
-        const notif = notifications.find(n => n.id === notificationId);
-        if (notif) {
-          const { error } = await supabase.from('notifications_log').insert([{
-            id: crypto.randomUUID(),
-            loan_id: ensureUUID(notif.loanId),
-            recipient_name: notif.borrowerName,
-            recipient_phone: notif.borrowerPhone,
-            message_khmer: notif.smsMessageKhmer,
-            channel: 'SMS',
-            status: 'DELIVERED'
-          }]);
+  const markReminderSent = async (
+    loanId: string,
+    recipientName: string,
+    recipientPhone: string,
+    messageKhmer: string,
+    channel: 'TELEGRAM_MANUAL' | 'SMS_MANUAL' | 'SMS' = 'TELEGRAM_MANUAL'
+  ) => {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('notifications_log').insert([{
+        id: crypto.randomUUID(),
+        loan_id: ensureUUID(loanId),
+        recipient_name: recipientName,
+        recipient_phone: recipientPhone,
+        message_khmer: messageKhmer,
+        channel: channel,
+        status: 'SENT_MANUAL'
+      }]);
 
-          if (error) {
-            handleSupabaseError(error, 'Log Notification Reminder');
-            return;
-          }
-        }
-        await fetchDataFromSupabase();
-      } else {
-        setSentReminderIds(prev => [...prev, notificationId]);
+      if (error) {
+        handleSupabaseError(error, 'Log Notification Reminder');
+        return;
       }
+      await insertAuditLog('notifications_log', loanId, 'INSERT', null, { recipientName, recipientPhone, channel }, supabaseUser?.email || 'Officer');
+      await fetchDataFromSupabase();
+    } else {
+      setSentReminderIds(prev => [...prev, loanId]);
     }
   };
 
@@ -1730,6 +1743,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loanApprovals,
       memberExits,
       auditLogs,
+      overdueInstallmentViews,
       isOfficer,
       isPresident,
       isTreasurer,

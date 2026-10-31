@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useClub } from '../context/ClubContext';
+import { PWAInstallButton } from './PWAInstallButton';
 import { 
   Bell, 
   Database, 
@@ -122,6 +123,28 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
+              onClick={() => handleNavClick('reports')}
+              className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
+                currentTab === 'reports'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
+                  : 'border-transparent'
+              }`}
+            >
+              របាយការណ៍
+            </button>
+
+            <button
+              onClick={() => handleNavClick('my_account')}
+              className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
+                currentTab === 'my_account'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
+                  : 'border-transparent'
+              }`}
+            >
+              គណនីរបស់ខ្ញុំ
+            </button>
+
+            <button
               onClick={() => handleNavClick('reconcile')}
               className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
                 currentTab === 'reconcile'
@@ -215,6 +238,8 @@ export const Navbar: React.FC = () => {
 
           {/* Zone 3: Actions + Reminders + Profile */}
           <div className="flex items-center gap-2.5 shrink-0">
+            <PWAInstallButton />
+
             <button
               onClick={() => handleNavClick('reminders')}
               title="ប្រព័ន្ធជូនដំណឹង & SMS រំលឹកសងកម្ចី"

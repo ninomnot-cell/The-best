@@ -21,6 +21,8 @@ import { ReconciliationPage } from './components/ReconciliationPage';
 import { YearEndClosingPage } from './components/YearEndClosingPage';
 import { MemberExitPage } from './components/MemberExitPage';
 import { AuditLogPage } from './components/AuditLogPage';
+import { ReportsPage } from './components/ReportsPage';
+import { MyAccountPage } from './components/MyAccountPage';
 import { SupabaseAuthPage } from './components/SupabaseAuthPage';
 import { LoginModal } from './components/LoginModal';
 import { RecordRepaymentModal } from './components/RecordRepaymentModal';
@@ -39,6 +41,8 @@ const MainContent: React.FC = () => {
       {currentTab === 'applications' && <LoanApplicationForm />}
       {currentTab === 'reminders' && <NotificationsManager />}
       {currentTab === 'expenses' && <ExpensesPage />}
+      {currentTab === 'reports' && <ReportsPage />}
+      {currentTab === 'my_account' && <MyAccountPage />}
       {currentTab === 'reconcile' && <ReconciliationPage />}
       {currentTab === 'year_end' && <YearEndClosingPage />}
       {currentTab === 'exits' && <MemberExitPage />}
