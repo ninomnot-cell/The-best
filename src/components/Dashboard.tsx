@@ -32,7 +32,8 @@ export const Dashboard: React.FC = () => {
     currentUser,
     setIsLoginModalOpen,
     setIsRepaymentModalOpen,
-    setSelectedMemberForDetail
+    setSelectedMemberForDetail,
+    clubSettings
   } = useClub();
 
   const [isEditingOwnProfile, setIsEditingOwnProfile] = useState(false);
@@ -49,12 +50,12 @@ export const Dashboard: React.FC = () => {
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg text-xs font-medium text-orange-200">
               <span>សមាគមស្វ័យគ្រប់គ្រង</span>
               <span>·</span>
-              <span>សមាជិកស្ថាបនិក ៨ នាក់</span>
+              <span>សមាជិកសកម្ម {stats.memberCount} នាក់</span>
               <span>·</span>
-              <span>ឆ្នាំប្រតិបត្តិការ ២០២៤-២០២៦</span>
+              <span>ឆ្នាំប្រតិបត្តិការ {clubSettings.currentFiscalYear}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              ផ្ទាំងគ្រប់គ្រងសមាគម ឌឹ បេស៍ ហ្វាមីលី ក្លឹប
+              ផ្ទាំងគ្រប់គ្រង{clubSettings.clubNameKhmer}
             </h1>
             <p className="text-slate-200 text-sm leading-relaxed">
               ប្រព័ន្ធតាមដានទិន្នន័យរួមបញ្ចូលគ្នា សម្រាប់ការសន្សំប្រាក់ប្រចាំខែ កម្ចីសមាជិកក្នុង និងអ្នកក្រៅសមាគម ព្រមទាំងការបែងចែកភាគលាភប្រកបដោយតម្លាភាព។
@@ -188,28 +189,30 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 3: Total Interest Earned */}
+        {/* Card 3: Total Interest & Fees Earned */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">ការប្រាក់ប្រមូលបាន</span>
+            <span className="text-xs font-medium text-slate-500">ចំណូលការប្រាក់ & ពិន័យ</span>
             <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-4">
             <div className="text-2xl font-bold text-emerald-700 tabular-nums">
-              +${stats.totalInterestEarned.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              +${(stats.totalInterestEarned + (stats.totalLateFeesEarned || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-              <span>សម្រាប់បែងចែកជាភាគលាភ</span>
+              <span>ការប្រាក់: ${stats.totalInterestEarned.toFixed(2)}</span>
+              <span>·</span>
+              <span>ពិន័យ: ${(stats.totalLateFeesEarned || 0).toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Card 4: Cash on Hand */}
+        {/* Card 4: Cash on Hand Formula */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">សាច់ប្រាក់ជាក់ស្តែងក្នុងដៃ</span>
+            <span className="text-xs font-medium text-slate-500">សាច់ប្រាក់ជាក់ស្តែងក្នុងដៃ (Cash)</span>
             <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700">
               <Wallet className="w-4 h-4" />
             </div>
@@ -218,8 +221,8 @@ export const Dashboard: React.FC = () => {
             <div className="text-2xl font-bold text-slate-900 tabular-nums">
               ${stats.cashOnHand.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="text-slate-600">សមតុល្យបេឡាក្លឹបមានស្រាប់</span>
+            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
+              <span>សន្សំ + ការប្រាក់ + ពិន័យ - កម្ចី - ចំណាយ (${(stats.totalExpenses || 0).toFixed(2)})</span>
             </div>
           </div>
         </div>

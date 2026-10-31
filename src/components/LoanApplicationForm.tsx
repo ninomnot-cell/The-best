@@ -26,6 +26,13 @@ export const LoanApplicationForm: React.FC = () => {
     submitLoanApplication, 
     approveLoanApplication, 
     rejectLoanApplication,
+    decideLoanApplication,
+    loanApprovals,
+    clubSettings,
+    isOfficer,
+    isPresident,
+    isTreasurer,
+    currentUser,
     setCurrentTab 
   } = useClub();
 
@@ -39,7 +46,7 @@ export const LoanApplicationForm: React.FC = () => {
   const [occupation, setOccupation] = useState('');
   const [requestedAmount, setRequestedAmount] = useState<number>(1500);
   const [termMonths, setTermMonths] = useState<number>(6);
-  const [interestRate, setInterestRate] = useState<number>(1.2);
+  const [interestRate, setInterestRate] = useState<number>(clubSettings?.memberLoanRate || 1.2);
   const [interestMethod, setInterestMethod] = useState<InterestMethod>('DECLINING');
   const [purpose, setPurpose] = useState('');
   const [collateral, setCollateral] = useState('');
@@ -52,6 +59,7 @@ export const LoanApplicationForm: React.FC = () => {
   const [reviewingAppId, setReviewingAppId] = useState<string | null>(null);
   const [adminCustomRate, setAdminCustomRate] = useState<number>(1.2);
   const [adminCustomMethod, setAdminCustomMethod] = useState<InterestMethod>('DECLINING');
+  const [officerComment, setOfficerComment] = useState('');
 
   // Handle member selection change
   const handleMemberSelect = (memberId: string) => {
@@ -70,10 +78,10 @@ export const LoanApplicationForm: React.FC = () => {
   const handleTypeChange = (type: BorrowerType) => {
     setApplicantType(type);
     if (type === 'MEMBER') {
-      setInterestRate(1.2);
+      setInterestRate(clubSettings?.memberLoanRate || 1.2);
       handleMemberSelect(members[0]?.id);
     } else {
-      setInterestRate(2.5);
+      setInterestRate(clubSettings?.externalLoanRate || 2.5);
       setApplicantName('');
       setApplicantPhone('');
       setApplicantIdCard('');
@@ -129,12 +137,26 @@ export const LoanApplicationForm: React.FC = () => {
 
   const startReviewApp = (app: typeof applications[0]) => {
     setReviewingAppId(app.id);
-    setAdminCustomRate(app.proposedInterestRate !== undefined ? app.proposedInterestRate : (app.applicantType === 'MEMBER' ? 1.2 : 2.5));
+    setAdminCustomRate(app.proposedInterestRate !== undefined ? app.proposedInterestRate : (app.applicantType === 'MEMBER' ? (clubSettings?.memberLoanRate || 1.2) : (clubSettings?.externalLoanRate || 2.5)));
     setAdminCustomMethod(app.interestMethod || 'DECLINING');
+    setOfficerComment('');
   };
 
-  const confirmApprove = (appId: string) => {
-    approveLoanApplication(appId, adminCustomRate, adminCustomMethod);
+  const confirmApproveDecision = async (appId: string) => {
+    if (decideLoanApplication) {
+      await decideLoanApplication(appId, 'APPROVED', officerComment || 'យល់ព្រមអនុម័តកម្ចី');
+    } else {
+      approveLoanApplication(appId, adminCustomRate, adminCustomMethod);
+    }
+    setReviewingAppId(null);
+  };
+
+  const confirmRejectDecision = async (appId: string) => {
+    if (decideLoanApplication) {
+      await decideLoanApplication(appId, 'REJECTED', officerComment || 'បដិសេធកម្ចី');
+    } else {
+      rejectLoanApplication(appId);
+    }
     setReviewingAppId(null);
   };
 
@@ -718,96 +740,125 @@ export const LoanApplicationForm: React.FC = () => {
                 មិនមានពាក្យស្នើសុំកម្ចីណាមួយឡើយ
               </div>
             ) : (
-              applications.map((app) => (
-                <div key={app.id} className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/50">
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-slate-900">
-                        {app.applicantName}
-                      </span>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                        app.applicantType === 'MEMBER'
-                          ? 'bg-blue-100 text-[#00609C]'
-                          : 'bg-orange-100 text-[#F15A24]'
-                      }`}>
-                        {app.applicantType === 'MEMBER' ? 'សមាជិកក្នុង' : 'អ្នកក្រៅ'}
-                      </span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                        {getMethodLabel(app.interestMethod || 'DECLINING')}
-                      </span>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                        app.status === 'PENDING'
-                          ? 'bg-amber-100 text-amber-800'
-                          : app.status === 'APPROVED'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}>
-                        {app.status === 'PENDING' ? 'រង់ចាំអនុម័ត' : app.status === 'APPROVED' ? 'បានអនុម័ត' : 'បានបដិសេធ'}
-                      </span>
-                    </div>
+              applications.map((app) => {
+                const appApprovals = loanApprovals ? loanApprovals.filter(a => a.applicationId === app.id) : [];
+                const presApproval = appApprovals.find(a => a.officerRole === 'ប្រធានក្លឹប');
+                const treasApproval = appApprovals.find(a => a.officerRole === 'បេឡាធិការ');
 
-                    <div className="text-xs text-slate-600">
-                      គោលបំណង: <span className="font-medium text-slate-900">«{app.purpose}»</span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                      <span>ទូរស័ព្ទ: <span className="font-mono text-slate-700">{app.applicantPhone}</span></span>
-                      <span>·</span>
-                      <span>ទ្រព្យធានា: <span className="text-slate-700">{app.collateralDescription}</span></span>
-                      <span>·</span>
-                      <span>អ្នកធានា: <span className="text-slate-700">{app.guarantorName} ({app.guarantorPhone})</span></span>
-                      <span>·</span>
-                      <span>ថ្ងៃដាក់ពាក្យ: <span className="font-mono">{app.appliedDate}</span></span>
-                    </div>
-
-                    {app.notes && (
-                      <div className="text-[11px] text-slate-500 italic">
-                        កំណត់សម្គាល់: {app.notes}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Financial Request & Actions */}
-                  <div className="flex items-center gap-4 self-end lg:self-center">
-                    <div className="text-right">
-                      <div className="text-xs text-slate-500">ទឹកប្រាក់ស្នើសុំ</div>
-                      <div className="text-base font-bold text-[#00609C] font-mono tabular-nums">
-                        ${app.requestedAmount.toLocaleString()}
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        {app.proposedTermMonths} ខែ · {app.proposedInterestRate !== undefined ? app.proposedInterestRate : (app.applicantType === 'MEMBER' ? 1.2 : 2.5)}%/ខែ
-                      </div>
-                    </div>
-
-                    {app.status === 'PENDING' ? (
+                return (
+                  <div key={app.id} className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/50">
+                    <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => startReviewApp(app)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>ពិនិត្យ & អនុម័ត</span>
-                        </button>
-                        <button
-                          onClick={() => rejectLoanApplication(app.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>បដិសេធ</span>
-                        </button>
+                        <span className="text-sm font-bold text-slate-900">
+                          {app.applicantName}
+                        </span>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                          app.applicantType === 'MEMBER'
+                            ? 'bg-blue-100 text-[#00609C]'
+                            : 'bg-orange-100 text-[#F15A24]'
+                        }`}>
+                          {app.applicantType === 'MEMBER' ? 'សមាជិកក្នុង' : 'អ្នកក្រៅ'}
+                        </span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                          {getMethodLabel(app.interestMethod || 'DECLINING')}
+                        </span>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                          app.status === 'PENDING'
+                            ? 'bg-amber-100 text-amber-800'
+                            : app.status === 'APPROVED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {app.status === 'PENDING' ? 'រង់ចាំការអនុម័ត 2 តំណែង' : app.status === 'APPROVED' ? 'បានអនុម័ត' : 'បានបដិសេធ'}
+                        </span>
                       </div>
-                    ) : app.status === 'APPROVED' ? (
-                      <button
-                        onClick={() => setCurrentTab('loans')}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#00609C] hover:underline cursor-pointer"
-                      >
-                        <span>មើលក្នុងបញ្ជីកម្ចី</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    ) : null}
+
+                      {/* Officer Approval Breakdown */}
+                      <div className="flex items-center gap-3 pt-1 text-[11px]">
+                        <span className="text-slate-500 font-medium">ស្ថានភាពអនុម័តមន្ត្រី៖</span>
+                        <span className={`inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded ${
+                          presApproval?.decision === 'APPROVED'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : presApproval?.decision === 'REJECTED'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          ប្រធានក្លឹប: {presApproval?.decision === 'APPROVED' ? '✓ យល់ព្រម' : presApproval?.decision === 'REJECTED' ? '✕ បដិសេធ' : 'រង់ចាំ'}
+                        </span>
+
+                        <span className={`inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded ${
+                          treasApproval?.decision === 'APPROVED'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : treasApproval?.decision === 'REJECTED'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          បេឡាធិការ: {treasApproval?.decision === 'APPROVED' ? '✓ យល់ព្រម' : treasApproval?.decision === 'REJECTED' ? '✕ បដិសេធ' : 'រង់ចាំ'}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-slate-600">
+                        គោលបំណង: <span className="font-medium text-slate-900">«{app.purpose}»</span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                        <span>ទូរស័ព្ទ: <span className="font-mono text-slate-700">{app.applicantPhone}</span></span>
+                        <span>·</span>
+                        <span>ទ្រព្យធានា: <span className="text-slate-700">{app.collateralDescription}</span></span>
+                        <span>·</span>
+                        <span>អ្នកធានា: <span className="text-slate-700">{app.guarantorName} ({app.guarantorPhone})</span></span>
+                        <span>·</span>
+                        <span>ថ្ងៃដាក់ពាក្យ: <span className="font-mono">{app.appliedDate}</span></span>
+                      </div>
+
+                      {app.notes && (
+                        <div className="text-[11px] text-slate-500 italic">
+                          កំណត់សម្គាល់: {app.notes}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Financial Request & Actions */}
+                    <div className="flex items-center gap-4 self-end lg:self-center">
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500">ទឹកប្រាក់ស្នើសុំ</div>
+                        <div className="text-base font-bold text-[#00609C] font-mono tabular-nums">
+                          ${app.requestedAmount.toLocaleString()}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {app.proposedTermMonths} ខែ · {app.proposedInterestRate !== undefined ? app.proposedInterestRate : (app.applicantType === 'MEMBER' ? (clubSettings?.memberLoanRate || 1.2) : (clubSettings?.externalLoanRate || 2.5))}%/ខែ
+                        </div>
+                      </div>
+
+                      {app.status === 'PENDING' ? (
+                        isOfficer ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startReviewApp(app)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>ពិនិត្យ & ផ្ដល់មតិ</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">
+                            (រង់ចាំប្រធាន & បេឡាធិការពិនិត្យ)
+                          </span>
+                        )
+                      ) : app.status === 'APPROVED' ? (
+                        <button
+                          onClick={() => setCurrentTab('loans')}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#00609C] hover:underline cursor-pointer"
+                        >
+                          <span>មើលក្នុងបញ្ជីកម្ចី</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -819,7 +870,7 @@ export const LoanApplicationForm: React.FC = () => {
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200">
               <h3 className="text-sm font-bold text-slate-900">
-                បញ្ជាក់ការអនុម័តកម្ចី & កំណត់អត្រាការប្រាក់
+                ពិនិត្យ & ផ្ដល់មតិអនុម័តកម្ចី (មន្ត្រីសមាគម)
               </h3>
               <button
                 onClick={() => setReviewingAppId(null)}
@@ -858,24 +909,37 @@ export const LoanApplicationForm: React.FC = () => {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-slate-700 font-medium mb-1">
+                  មតិ/កំណត់សម្គាល់របស់មន្ត្រីអនុម័ត
+                </label>
+                <input
+                  type="text"
+                  placeholder="ឧ. ឯកសារគ្រប់គ្រាន់ យល់ព្រម..."
+                  value={officerComment}
+                  onChange={(e) => setOfficerComment(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#00609C]"
+                />
+              </div>
+
               <div className="p-3 bg-blue-50/70 rounded-lg border border-blue-100 text-slate-600 text-[11px] leading-relaxed">
-                នៅពេលចុចយល់ព្រមអនុម័ត ប្រព័ន្ធនឹងបង្កើតតារាងកាលវិភាគបង់ប្រាក់ កូដកិច្ចសន្យាផ្លូវការ និងដាក់កម្ចីនេះទៅក្នុងបញ្ជីកម្ចីសកម្មដោយស្វ័យប្រវត្តិ។
+                តម្រូវឱ្យមានការអនុម័ត «យល់ព្រម» ពីទាំង <strong>ប្រធានក្លឹប</strong> និង <strong>បេឡាធិការ</strong> ទើបកម្ចីនេះត្រូវបញ្ចេញ និងបង្កើតកិច្ចសន្យាផ្លូវការ។
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setReviewingAppId(null)}
-                  className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer"
+                  onClick={() => confirmRejectDecision(reviewingAppId)}
+                  className="px-3.5 py-2 text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg font-semibold cursor-pointer"
                 >
-                  បោះបង់
+                  បដិសេធកម្ចី
                 </button>
                 <button
                   type="button"
-                  onClick={() => confirmApprove(reviewingAppId)}
+                  onClick={() => confirmApproveDecision(reviewingAppId)}
                   className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg font-semibold cursor-pointer"
                 >
-                  អនុម័តកម្ចីភ្លាមៗ
+                  យល់ព្រមអនុម័ត
                 </button>
               </div>
             </div>

@@ -45,7 +45,9 @@ export const LoansManager: React.FC = () => {
     voidLoanPayment,
     updateLoan,
     deleteLoan,
-    updateLoanPayment
+    updateLoanPayment,
+    isOfficer,
+    clubSettings
   } = useClub();
 
   const [borrowerFilter, setBorrowerFilter] = useState<'ALL' | 'MEMBER' | 'EXTERNAL'>('ALL');
@@ -349,27 +351,31 @@ export const LoansManager: React.FC = () => {
                           </button>
                         )}
 
-                        <button
-                          onClick={() => setEditingLoan(loan)}
-                          title="កែប្រែកម្ចី"
-                          className="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
-                        >
-                          <Edit2 className="w-3.5 h-3.5 text-slate-600" />
-                          <span>កែប្រែ</span>
-                        </button>
+                        {isOfficer && (
+                          <>
+                            <button
+                              onClick={() => setEditingLoan(loan)}
+                              title="កែប្រែកម្ចី"
+                              className="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit2 className="w-3.5 h-3.5 text-slate-600" />
+                              <span>កែប្រែ</span>
+                            </button>
 
-                        <button
-                          onClick={() => {
-                            setDeletingLoan(loan);
-                            setConfirmCodeInput('');
-                            setIsHardDelete(false);
-                          }}
-                          title="លុប ឬមោឃភាពកម្ចី"
-                          className="px-2 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                          <span>លុប</span>
-                        </button>
+                            <button
+                              onClick={() => {
+                                setDeletingLoan(loan);
+                                setConfirmCodeInput('');
+                                setIsHardDelete(false);
+                              }}
+                              title="លុប ឬមោឃភាពកម្ចី"
+                              className="px-2 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              <span>លុប</span>
+                            </button>
+                          </>
+                        )}
 
                         <button
                           onClick={() => setSelectedLoanForHistory(loan)}

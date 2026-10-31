@@ -352,7 +352,231 @@ export function mapOfficerTermToRow(t: Partial<OfficerTerm>): Record<string, any
 }
 
 // ==========================================
-// 8. AUDIT LOG HELPER
+// 8. CLUB SETTINGS MAPPERS
+// ==========================================
+export function mapClubSettingsFromRow(row: any): import('../types').ClubSettings {
+  return {
+    id: Number(row.id || 1),
+    clubNameKhmer: row.club_name_khmer || 'សមាគម ឌឹ បេស៍ ហ្វាមីលី ក្លឹប',
+    currentFiscalYear: Number(row.current_fiscal_year || 2026),
+    memberLoanRate: Number(row.member_loan_rate ?? 1.20),
+    externalLoanRate: Number(row.external_loan_rate ?? 2.50),
+    defaultMonthlyCommitment: Number(row.default_monthly_commitment ?? 100.00),
+    lateFeeType: row.late_fee_type || 'PERCENT_PER_MONTH',
+    lateFeeValue: Number(row.late_fee_value ?? 1.00),
+    graceDays: Number(row.grace_days ?? 3),
+    updatedAt: row.updated_at || undefined
+  };
+}
+
+export function mapClubSettingsToRow(s: Partial<import('../types').ClubSettings>): Record<string, any> {
+  const row: Record<string, any> = {};
+  row.id = s.id ? Number(s.id) : 1;
+  if (s.clubNameKhmer !== undefined) row.club_name_khmer = s.clubNameKhmer;
+  if (s.currentFiscalYear !== undefined) row.current_fiscal_year = Number(s.currentFiscalYear);
+  if (s.memberLoanRate !== undefined) row.member_loan_rate = Number(s.memberLoanRate);
+  if (s.externalLoanRate !== undefined) row.external_loan_rate = Number(s.externalLoanRate);
+  if (s.defaultMonthlyCommitment !== undefined) row.default_monthly_commitment = Number(s.defaultMonthlyCommitment);
+  if (s.lateFeeType !== undefined) row.late_fee_type = s.lateFeeType;
+  if (s.lateFeeValue !== undefined) row.late_fee_value = Number(s.lateFeeValue);
+  if (s.graceDays !== undefined) row.grace_days = Number(s.graceDays);
+  row.updated_at = new Date().toISOString();
+  return row;
+}
+
+// ==========================================
+// 9. EXPENSES MAPPERS
+// ==========================================
+export function mapExpenseFromRow(row: any): import('../types').ExpenseRecord {
+  return {
+    id: row.id,
+    expenseDate: formatDateStr(row.expense_date),
+    category: row.category || 'OTHER',
+    description: row.description || '',
+    amount: Number(row.amount ?? 0),
+    paymentMethod: row.payment_method || 'ABA_PAY',
+    referenceNumber: row.reference_number || undefined,
+    recordedBy: row.recorded_by || '',
+    isVoided: Boolean(row.is_voided),
+    voidedBy: row.voided_by || undefined,
+    voidReason: row.void_reason || undefined,
+    voidedAt: row.voided_at || undefined,
+    createdAt: row.created_at || undefined
+  };
+}
+
+export function mapExpenseToRow(e: Partial<import('../types').ExpenseRecord>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (e.id) row.id = ensureUUID(e.id);
+  if (e.expenseDate !== undefined) row.expense_date = formatDateStr(e.expenseDate);
+  if (e.category !== undefined) row.category = e.category;
+  if (e.description !== undefined) row.description = e.description;
+  if (e.amount !== undefined) row.amount = Number(e.amount);
+  if (e.paymentMethod !== undefined) row.payment_method = e.paymentMethod;
+  if (e.referenceNumber !== undefined) row.reference_number = e.referenceNumber || null;
+  if (e.recordedBy !== undefined) row.recorded_by = e.recordedBy;
+  if (e.isVoided !== undefined) row.is_voided = Boolean(e.isVoided);
+  if (e.voidedBy !== undefined) row.voided_by = e.voidedBy || null;
+  if (e.voidReason !== undefined) row.void_reason = e.voidReason || null;
+  if (e.voidedAt !== undefined) row.voided_at = e.voidedAt || null;
+  return row;
+}
+
+// ==========================================
+// 10. CASH RECONCILIATIONS MAPPERS
+// ==========================================
+export function mapReconciliationFromRow(row: any): import('../types').CashReconciliation {
+  const sysBal = Number(row.system_balance ?? 0);
+  const actCash = Number(row.actual_cash ?? 0);
+  const actBank = Number(row.actual_bank ?? 0);
+  return {
+    id: row.id,
+    periodYear: Number(row.period_year),
+    periodMonth: Number(row.period_month),
+    systemBalance: sysBal,
+    actualCash: actCash,
+    actualBank: actBank,
+    difference: (actCash + actBank) - sysBal,
+    notes: row.notes || undefined,
+    recordedBy: row.recorded_by || '',
+    createdAt: row.created_at || undefined
+  };
+}
+
+// IMPORTANT: Do NOT send `difference` column on insert/update!
+export function mapReconciliationToRow(r: Partial<import('../types').CashReconciliation>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (r.id) row.id = ensureUUID(r.id);
+  if (r.periodYear !== undefined) row.period_year = Number(r.periodYear);
+  if (r.periodMonth !== undefined) row.period_month = Number(r.periodMonth);
+  if (r.systemBalance !== undefined) row.system_balance = Number(r.systemBalance);
+  if (r.actualCash !== undefined) row.actual_cash = Number(r.actualCash);
+  if (r.actualBank !== undefined) row.actual_bank = Number(r.actualBank);
+  if (r.notes !== undefined) row.notes = r.notes || null;
+  if (r.recordedBy !== undefined) row.recorded_by = r.recordedBy;
+  return row;
+}
+
+// ==========================================
+// 11. FISCAL YEAR CLOSINGS MAPPERS
+// ==========================================
+export function mapFiscalClosingFromRow(row: any): import('../types').FiscalYearClosing {
+  return {
+    id: row.id,
+    fiscalYear: Number(row.fiscal_year),
+    totalSavings: Number(row.total_savings ?? 0),
+    interestIncome: Number(row.interest_income ?? 0),
+    lateFees: Number(row.late_fees ?? 0),
+    totalExpenses: Number(row.total_expenses ?? 0),
+    netProfit: Number(row.net_profit ?? 0),
+    totalDividends: Number(row.total_dividends ?? 0),
+    closedBy: row.closed_by || '',
+    closedAt: row.closed_at || formatDateStr('2026-10-30'),
+    notes: row.notes || undefined
+  };
+}
+
+export function mapFiscalClosingToRow(f: Partial<import('../types').FiscalYearClosing>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (f.id) row.id = ensureUUID(f.id);
+  if (f.fiscalYear !== undefined) row.fiscal_year = Number(f.fiscalYear);
+  if (f.totalSavings !== undefined) row.total_savings = Number(f.totalSavings);
+  if (f.interestIncome !== undefined) row.interest_income = Number(f.interestIncome);
+  if (f.lateFees !== undefined) row.late_fees = Number(f.lateFees);
+  if (f.totalExpenses !== undefined) row.total_expenses = Number(f.totalExpenses);
+  if (f.netProfit !== undefined) row.net_profit = Number(f.netProfit);
+  if (f.totalDividends !== undefined) row.total_dividends = Number(f.totalDividends);
+  if (f.closedBy !== undefined) row.closed_by = f.closedBy;
+  if (f.notes !== undefined) row.notes = f.notes || null;
+  return row;
+}
+
+// ==========================================
+// 12. LOAN APPROVALS MAPPERS
+// ==========================================
+export function mapLoanApprovalFromRow(row: any): import('../types').LoanApproval {
+  return {
+    id: row.id,
+    applicationId: row.application_id,
+    officerId: row.officer_id || undefined,
+    officerName: row.officer_name || '',
+    officerRole: row.officer_role || 'ប្រធានក្លឹប',
+    decision: row.decision || 'APPROVED',
+    comment: row.comment || undefined,
+    createdAt: row.created_at || undefined
+  };
+}
+
+export function mapLoanApprovalToRow(a: Partial<import('../types').LoanApproval>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (a.id) row.id = ensureUUID(a.id);
+  if (a.applicationId) row.application_id = ensureUUID(a.applicationId);
+  if (a.officerId) row.officer_id = ensureUUID(a.officerId);
+  if (a.officerName !== undefined) row.officer_name = a.officerName;
+  if (a.officerRole !== undefined) row.officer_role = a.officerRole;
+  if (a.decision !== undefined) row.decision = a.decision;
+  if (a.comment !== undefined) row.comment = a.comment || null;
+  return row;
+}
+
+// ==========================================
+// 13. MEMBER EXITS MAPPERS
+// ==========================================
+export function mapMemberExitFromRow(row: any, memberMap: Record<string, import('../types').Member> = {}): import('../types').MemberExit {
+  const m = memberMap[row.member_id];
+  return {
+    id: row.id,
+    memberId: row.member_id,
+    memberName: m ? m.nameKhmer : (row.member_name || 'សមាជិក'),
+    exitDate: formatDateStr(row.exit_date),
+    savingsAtExit: Number(row.savings_at_exit ?? 0),
+    dividendsAtExit: Number(row.dividends_at_exit ?? 0),
+    loanDeduction: Number(row.loan_deduction ?? 0),
+    payoutAmount: Number(row.payout_amount ?? 0),
+    payoutMethod: row.payout_method || 'ABA_PAY',
+    receiptNumber: row.receipt_number || '',
+    paidBy: row.paid_by || '',
+    notes: row.notes || undefined,
+    hasWrittenDebtNote: Boolean(row.has_written_debt_note),
+    createdAt: row.created_at || undefined
+  };
+}
+
+export function mapMemberExitToRow(e: Partial<import('../types').MemberExit>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (e.id) row.id = ensureUUID(e.id);
+  if (e.memberId) row.member_id = ensureUUID(e.memberId);
+  if (e.exitDate !== undefined) row.exit_date = formatDateStr(e.exitDate);
+  if (e.savingsAtExit !== undefined) row.savings_at_exit = Number(e.savingsAtExit);
+  if (e.dividendsAtExit !== undefined) row.dividends_at_exit = Number(e.dividendsAtExit);
+  if (e.loanDeduction !== undefined) row.loan_deduction = Number(e.loanDeduction);
+  if (e.payoutAmount !== undefined) row.payout_amount = Number(e.payoutAmount);
+  if (e.payoutMethod !== undefined) row.payout_method = e.payoutMethod;
+  if (e.receiptNumber !== undefined) row.receipt_number = e.receiptNumber;
+  if (e.paidBy !== undefined) row.paid_by = e.paidBy;
+  if (e.notes !== undefined) row.notes = e.notes || null;
+  if (e.hasWrittenDebtNote !== undefined) row.has_written_debt_note = Boolean(e.hasWrittenDebtNote);
+  return row;
+}
+
+// ==========================================
+// 14. AUDIT LOG MAPPERS
+// ==========================================
+export function mapAuditLogFromRow(row: any): import('../types').AuditLogRecord {
+  return {
+    id: row.id,
+    tableName: row.table_name || '',
+    recordId: row.record_id || '',
+    action: row.action || 'INSERT',
+    oldData: row.old_data || null,
+    newData: row.new_data || null,
+    changedBy: row.changed_by || '',
+    changedAt: row.changed_at || formatDateStr('2026-10-30')
+  };
+}
+
+// ==========================================
+// AUDIT LOG HELPER
 // ==========================================
 export async function insertAuditLog(
   tableName: string,

@@ -15,11 +15,17 @@ import { NotificationsManager } from './components/NotificationsManager';
 import { DatabaseSchemaView } from './components/DatabaseSchemaView';
 import { DividendsCalculator } from './components/DividendsCalculator';
 import { OfficerHandoverPage } from './components/OfficerHandoverPage';
-import { LoginModal } from './components/LoginModal';
+import { SettingsPage } from './components/SettingsPage';
+import { ExpensesPage } from './components/ExpensesPage';
+import { ReconciliationPage } from './components/ReconciliationPage';
+import { YearEndClosingPage } from './components/YearEndClosingPage';
+import { MemberExitPage } from './components/MemberExitPage';
+import { AuditLogPage } from './components/AuditLogPage';
 import { SupabaseAuthPage } from './components/SupabaseAuthPage';
+import { LoginModal } from './components/LoginModal';
 import { RecordRepaymentModal } from './components/RecordRepaymentModal';
 import { PrintReceiptModal } from './components/PrintReceiptModal';
-import { RefreshCw, Radio, CheckCircle2, Cloud } from 'lucide-react';
+import { Cloud, Radio, RefreshCw } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const { currentTab } = useClub();
@@ -32,6 +38,12 @@ const MainContent: React.FC = () => {
       {currentTab === 'loans' && <LoansManager />}
       {currentTab === 'applications' && <LoanApplicationForm />}
       {currentTab === 'reminders' && <NotificationsManager />}
+      {currentTab === 'expenses' && <ExpensesPage />}
+      {currentTab === 'reconcile' && <ReconciliationPage />}
+      {currentTab === 'year_end' && <YearEndClosingPage />}
+      {currentTab === 'exits' && <MemberExitPage />}
+      {currentTab === 'settings' && <SettingsPage />}
+      {currentTab === 'audit_log' && <AuditLogPage />}
       {currentTab === 'database' && <DatabaseSchemaView />}
       {currentTab === 'dividends' && <DividendsCalculator />}
       {currentTab === 'handover' && <OfficerHandoverPage />}

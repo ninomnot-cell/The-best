@@ -28,7 +28,7 @@ export interface Member {
   occupation?: string;
   email?: string;
   pin?: string; // 4-digit login PIN
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'ACTIVE' | 'INACTIVE' | 'LEFT';
 }
 
 export interface MonthlySavingRecord {
@@ -153,6 +153,8 @@ export interface ClubStats {
   totalClubSavings: number;
   totalActiveLoans: number;
   totalInterestEarned: number;
+  totalLateFeesEarned: number;
+  totalExpenses: number;
   cashOnHand: number;
   memberCount: number;
   activeLoanCount: number;
@@ -167,4 +169,103 @@ export interface OfficerTerm {
   role: 'ប្រធានក្លឹប' | 'បេឡាធិការ';
   termStart: string;
   termEnd?: string | null;
+}
+
+export type LateFeeType = 'NONE' | 'FLAT' | 'PERCENT_PER_DAY' | 'PERCENT_PER_MONTH';
+
+export interface ClubSettings {
+  id: number;
+  clubNameKhmer: string;
+  currentFiscalYear: number;
+  memberLoanRate: number;
+  externalLoanRate: number;
+  defaultMonthlyCommitment: number;
+  lateFeeType: LateFeeType;
+  lateFeeValue: number;
+  graceDays: number;
+  updatedAt?: string;
+}
+
+export type ExpenseCategory = 'MEETING' | 'BANK_FEE' | 'PRINTING' | 'TRANSPORT' | 'OTHER';
+
+export interface ExpenseRecord {
+  id: string;
+  expenseDate: string;
+  category: ExpenseCategory;
+  description: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  referenceNumber?: string;
+  recordedBy: string;
+  isVoided: boolean;
+  voidedBy?: string;
+  voidReason?: string;
+  voidedAt?: string;
+  createdAt?: string;
+}
+
+export interface CashReconciliation {
+  id: string;
+  periodYear: number;
+  periodMonth: number;
+  systemBalance: number;
+  actualCash: number;
+  actualBank: number;
+  difference: number;
+  notes?: string;
+  recordedBy: string;
+  createdAt?: string;
+}
+
+export interface FiscalYearClosing {
+  id: string;
+  fiscalYear: number;
+  totalSavings: number;
+  interestIncome: number;
+  lateFees: number;
+  totalExpenses: number;
+  netProfit: number;
+  totalDividends: number;
+  closedBy: string;
+  closedAt: string;
+  notes?: string;
+}
+
+export interface LoanApproval {
+  id: string;
+  applicationId: string;
+  officerId?: string;
+  officerName: string;
+  officerRole: 'ប្រធានក្លឹប' | 'បេឡាធិការ';
+  decision: 'APPROVED' | 'REJECTED';
+  comment?: string;
+  createdAt: string;
+}
+
+export interface MemberExit {
+  id: string;
+  memberId: string;
+  memberName?: string;
+  exitDate: string;
+  savingsAtExit: number;
+  dividendsAtExit: number;
+  loanDeduction: number;
+  payoutAmount: number;
+  payoutMethod: PaymentMethod;
+  receiptNumber: string;
+  paidBy: string;
+  notes?: string;
+  hasWrittenDebtNote: boolean;
+  createdAt?: string;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  tableName: string;
+  recordId: string;
+  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'VOID';
+  oldData?: any;
+  newData?: any;
+  changedBy: string;
+  changedAt: string;
 }

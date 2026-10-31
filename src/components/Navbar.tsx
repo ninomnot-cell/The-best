@@ -1,6 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useClub } from '../context/ClubContext';
-import { Bell, Database, PlusCircle, Award } from 'lucide-react';
+import { 
+  Bell, 
+  Database, 
+  PlusCircle, 
+  Award, 
+  Receipt, 
+  Scale, 
+  Lock, 
+  UserMinus, 
+  Settings, 
+  FileCode2, 
+  ChevronDown, 
+  ChevronRight,
+  ShieldAlert
+} from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { 
@@ -11,19 +25,28 @@ export const Navbar: React.FC = () => {
     currentUser,
     supabaseUser,
     supabaseSignOut,
-    setIsLoginModalOpen
+    setIsLoginModalOpen,
+    stats,
+    isOfficer
   } = useClub();
+
+  const [isAdminDropdownOpen, setIsAdminDropdownOpen] = useState(false);
 
   const pendingAppsCount = applications.filter(a => a.status === 'PENDING').length;
   const overdueOrDueCount = notifications.length;
 
+  const handleNavClick = (tab: string) => {
+    setCurrentTab(tab);
+    setIsAdminDropdownOpen(false);
+  };
+
   return (
     <header className="no-print sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-8 h-16">
+        <div className="flex items-center justify-between gap-4 h-16">
           {/* Zone 1: Brand Wordmark with Logo */}
           <div 
-            onClick={() => setCurrentTab('dashboard')} 
+            onClick={() => handleNavClick('dashboard')} 
             className="flex items-center gap-3 cursor-pointer whitespace-nowrap shrink-0 select-none"
           >
             <img 
@@ -41,13 +64,13 @@ export const Navbar: React.FC = () => {
             </div>
           </div>
 
-          {/* Zone 2: 4-5 Concise Single-Line Navigation Links */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
+          {/* Zone 2: Navigation Links */}
+          <nav className="hidden md:flex items-center gap-5 text-xs font-medium text-slate-600">
             <button
-              onClick={() => setCurrentTab('dashboard')}
+              onClick={() => handleNavClick('dashboard')}
               className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
                 currentTab === 'dashboard'
-                  ? 'border-[#00609C] text-[#00609C] font-semibold'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
                   : 'border-transparent'
               }`}
             >
@@ -55,21 +78,21 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setCurrentTab('members')}
+              onClick={() => handleNavClick('members')}
               className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
                 currentTab === 'members'
-                  ? 'border-[#00609C] text-[#00609C] font-semibold'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
                   : 'border-transparent'
               }`}
             >
-              សមាជិក (៨ នាក់)
+              សមាជិក ({stats.memberCount} នាក់)
             </button>
 
             <button
-              onClick={() => setCurrentTab('savings')}
+              onClick={() => handleNavClick('savings')}
               className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
                 currentTab === 'savings'
-                  ? 'border-[#00609C] text-[#00609C] font-semibold'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
                   : 'border-transparent'
               }`}
             >
@@ -77,56 +100,123 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setCurrentTab('loans')}
+              onClick={() => handleNavClick('loans')}
               className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
                 currentTab === 'loans'
-                  ? 'border-[#00609C] text-[#00609C] font-semibold'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
                   : 'border-transparent'
               }`}
             >
-              កម្ចី & តារាងបង់ប្រាក់
+              កម្ចី & តារាងបង់
             </button>
 
             <button
-              onClick={() => setCurrentTab('dividends')}
+              onClick={() => handleNavClick('expenses')}
               className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
-                currentTab === 'dividends'
-                  ? 'border-[#00609C] text-[#00609C] font-semibold'
+                currentTab === 'expenses'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
                   : 'border-transparent'
               }`}
             >
-              ការប្រាក់ & ភាគលាភ
+              ចំណាយសមាគម
             </button>
 
             <button
-              onClick={() => setCurrentTab('handover')}
-              className={`inline-flex items-center gap-1 hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
-                currentTab === 'handover'
-                  ? 'border-[#00609C] text-[#00609C] font-semibold'
+              onClick={() => handleNavClick('reconcile')}
+              className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
+                currentTab === 'reconcile'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
                   : 'border-transparent'
               }`}
             >
-              <Award className="w-3.5 h-3.5 text-amber-600" />
-              <span>ប្តូរមុខតំណែង</span>
+              ផ្ទៀងផ្ទាត់សាច់ប្រាក់
             </button>
 
-            <button
-              onClick={() => setCurrentTab('database')}
-              className={`inline-flex items-center gap-1.5 hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
-                currentTab === 'database'
-                  ? 'border-[#00609C] text-[#00609C] font-semibold'
-                  : 'border-transparent text-slate-500'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span>រចនាសម្ព័ន្ធ DB</span>
-            </button>
+            {/* Admin & Management Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsAdminDropdownOpen(prev => !prev)}
+                className={`inline-flex items-center gap-1 hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
+                  ['settings', 'year_end', 'exits', 'handover', 'audit_log', 'dividends', 'database'].includes(currentTab)
+                    ? 'border-[#00609C] text-[#00609C] font-bold'
+                    : 'border-transparent'
+                }`}
+              >
+                <span>គ្រប់គ្រង/កំណត់</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+
+              {isAdminDropdownOpen && (
+                <div 
+                  className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-xs text-slate-700 animate-fadeIn"
+                  onMouseLeave={() => setIsAdminDropdownOpen(false)}
+                >
+                  <button
+                    onClick={() => handleNavClick('year_end')}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-purple-600" />
+                    <span>បិទបញ្ជីប្រចាំឆ្នាំ (Year-End)</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('exits')}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <UserMinus className="w-3.5 h-3.5 text-amber-600" />
+                    <span>សមាជិកចាកចេញ (Exit)</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('handover')}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Award className="w-3.5 h-3.5 text-blue-600" />
+                    <span>ប្តូរមុខតំណែង (Handover)</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('settings')}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-slate-600" />
+                    <span>ការកំណត់ប្រព័ន្ធ (Settings)</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('audit_log')}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <FileCode2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>ប្រវត្តិ Audit Log</span>
+                  </button>
+
+                  <div className="border-t border-slate-100 my-1"></div>
+
+                  <button
+                    onClick={() => handleNavClick('dividends')}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Award className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>ការប្រាក់ & ភាគលាភ</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('database')}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 cursor-pointer text-slate-500"
+                  >
+                    <Database className="w-3.5 h-3.5" />
+                    <span>រចនាសម្ព័ន្ធ DB</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </nav>
 
-          {/* Zone 3: 1 Primary Action + Notification Button + Member Profile / Supabase Auth Logout */}
+          {/* Zone 3: Actions + Reminders + Profile */}
           <div className="flex items-center gap-2.5 shrink-0">
             <button
-              onClick={() => setCurrentTab('reminders')}
+              onClick={() => handleNavClick('reminders')}
               title="ប្រព័ន្ធជូនដំណឹង & SMS រំលឹកសងកម្ចី"
               className="relative p-2 text-slate-600 hover:text-[#00609C] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
@@ -139,7 +229,7 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setCurrentTab('applications')}
+              onClick={() => handleNavClick('applications')}
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#F15A24] hover:bg-[#d94814] rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <PlusCircle className="w-3.5 h-3.5" />
@@ -151,7 +241,7 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* Current Member Profile / Supabase Session Info */}
+            {/* Current Member Profile Info */}
             {currentUser ? (
               <div className="flex items-center gap-2 pl-1 border-l border-slate-200">
                 <button
@@ -205,42 +295,48 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Mobile Navigation Sub-strip for small screens */}
-        <div className="md:hidden flex items-center gap-3 py-2 border-t border-slate-100 overflow-x-auto text-xs font-medium">
+        <div className="md:hidden flex items-center gap-2 py-2 border-t border-slate-100 overflow-x-auto text-xs font-medium">
           <button 
-            onClick={() => setCurrentTab('dashboard')}
+            onClick={() => handleNavClick('dashboard')}
             className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'dashboard' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
           >
             ផ្ទាំងគ្រប់គ្រង
           </button>
           <button 
-            onClick={() => setCurrentTab('members')}
+            onClick={() => handleNavClick('members')}
             className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'members' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
           >
-            សមាជិក (៨)
+            សមាជិក ({stats.memberCount})
           </button>
           <button 
-            onClick={() => setCurrentTab('savings')}
+            onClick={() => handleNavClick('savings')}
             className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'savings' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
           >
             ការសន្សំ
           </button>
           <button 
-            onClick={() => setCurrentTab('loans')}
+            onClick={() => handleNavClick('loans')}
             className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'loans' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
           >
-            កម្ចី & តារាងបង់
+            កម្ចី
           </button>
           <button 
-            onClick={() => setCurrentTab('dividends')}
-            className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'dividends' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
+            onClick={() => handleNavClick('expenses')}
+            className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'expenses' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
           >
-            ភាគលាភ
+            ចំណាយ
           </button>
           <button 
-            onClick={() => setCurrentTab('database')}
-            className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'database' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
+            onClick={() => handleNavClick('reconcile')}
+            className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'reconcile' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
           >
-            រចនាសម្ព័ន្ធ DB
+            ផ្ទៀងផ្ទាត់
+          </button>
+          <button 
+            onClick={() => handleNavClick('settings')}
+            className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'settings' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
+          >
+            ការកំណត់
           </button>
         </div>
       </div>

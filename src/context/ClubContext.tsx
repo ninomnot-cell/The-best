@@ -7,7 +7,14 @@ import {
   NotificationReminder, 
   ClubStats,
   LoanPayment,
-  OfficerTerm
+  OfficerTerm,
+  ClubSettings,
+  ExpenseRecord,
+  CashReconciliation,
+  FiscalYearClosing,
+  LoanApproval,
+  MemberExit,
+  AuditLogRecord
 } from '../types';
 import { 
   INITIAL_MEMBERS, 
@@ -34,9 +41,34 @@ import {
   mapLoanPaymentToRow,
   mapOfficerTermFromRow,
   mapOfficerTermToRow,
+  mapClubSettingsFromRow,
+  mapClubSettingsToRow,
+  mapExpenseFromRow,
+  mapExpenseToRow,
+  mapReconciliationFromRow,
+  mapReconciliationToRow,
+  mapFiscalClosingFromRow,
+  mapFiscalClosingToRow,
+  mapLoanApprovalFromRow,
+  mapLoanApprovalToRow,
+  mapMemberExitFromRow,
+  mapMemberExitToRow,
+  mapAuditLogFromRow,
   insertAuditLog
 } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
+
+const DEFAULT_CLUB_SETTINGS: ClubSettings = {
+  id: 1,
+  clubNameKhmer: 'សមាគម ឌឹ បេស៍ ហ្វាមីលី ក្លឹប',
+  currentFiscalYear: 2026,
+  memberLoanRate: 1.20,
+  externalLoanRate: 2.50,
+  defaultMonthlyCommitment: 100.00,
+  lateFeeType: 'PERCENT_PER_MONTH',
+  lateFeeValue: 1.00,
+  graceDays: 3
+};
 
 interface ClubContextType {
   members: Member[];
@@ -73,8 +105,23 @@ interface ClubContextType {
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
   
-  officerTerms: import('../types').OfficerTerm[];
-  
+  officerTerms: OfficerTerm[];
+
+  // Feature 1-7 States
+  clubSettings: ClubSettings;
+  expenses: ExpenseRecord[];
+  reconciliations: CashReconciliation[];
+  fiscalClosings: FiscalYearClosing[];
+  loanApprovals: LoanApproval[];
+  memberExits: MemberExit[];
+  auditLogs: AuditLogRecord[];
+
+  // Permission Helpers
+  isOfficer: boolean;
+  isPresident: boolean;
+  isTreasurer: boolean;
+  isYearClosed: (year: number) => boolean;
+
   // Actions
   transferOfficeRole: (role: 'ប្រធានក្លឹប' | 'បេឡាធិការ', newMemberId: string, effectiveDate: string) => Promise<{ success: boolean; error?: string }>;
   login: (phoneOrCode: string, pin?: string) => boolean;
@@ -99,6 +146,15 @@ interface ClubContextType {
   markReminderSent: (notificationId: string) => Promise<void>;
   refreshData: () => Promise<void>;
   resetToDefaultData: () => Promise<void>;
+
+  // Feature Actions
+  updateClubSettings: (updated: Partial<ClubSettings>) => Promise<boolean>;
+  addExpense: (data: Omit<ExpenseRecord, 'id' | 'isVoided' | 'recordedBy'>) => Promise<boolean>;
+  voidExpense: (expenseId: string, voidReason: string) => Promise<boolean>;
+  addReconciliation: (data: Omit<CashReconciliation, 'id' | 'difference' | 'recordedBy'>) => Promise<boolean>;
+  closeFiscalYear: (fiscalYear: number, notes?: string) => Promise<{ success: boolean; error?: string }>;
+  decideLoanApplication: (applicationId: string, decision: 'APPROVED' | 'REJECTED', comment?: string) => Promise<{ success: boolean; error?: string }>;
+  exitMember: (memberId: string, payoutData: { exitDate: string; payoutMethod: import('../types').PaymentMethod; notes?: string; hasWrittenDebtNote: boolean }) => Promise<{ success: boolean; error?: string; exitRecord?: MemberExit }>;
 }
 
 const ClubContext = createContext<ClubContextType | undefined>(undefined);
@@ -118,6 +174,15 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [payments, setPayments] = useState<LoanPayment[]>([]);
   const [officerTerms, setOfficerTerms] = useState<OfficerTerm[]>([]);
   const [sentReminderIds, setSentReminderIds] = useState<string[]>([]);
+
+  // Feature States
+  const [clubSettings, setClubSettings] = useState<ClubSettings>(DEFAULT_CLUB_SETTINGS);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [reconciliations, setReconciliations] = useState<CashReconciliation[]>([]);
+  const [fiscalClosings, setFiscalClosings] = useState<FiscalYearClosing[]>([]);
+  const [loanApprovals, setLoanApprovals] = useState<LoanApproval[]>([]);
+  const [memberExits, setMemberExits] = useState<MemberExit[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
   
   const [supabaseSession, setSupabaseSession] = useState<Session | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
@@ -136,6 +201,41 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isRepaymentModalOpen, setIsRepaymentModalOpen] = useState<boolean>(false);
   const [preselectedLoanForRepayment, setPreselectedLoanForRepayment] = useState<{ loanId: string; installmentNumber?: number } | null>(null);
   const [selectedReceiptForPrint, setSelectedReceiptForPrint] = useState<{ payment: LoanPayment; loan: Loan } | null>(null);
+
+  // Permissions Helpers
+  const isOfficer = useMemo(() => {
+    if (currentUser && (currentUser.role === 'ប្រធានក្លឹប' || currentUser.role === 'បេឡាធិការ')) return true;
+    if (supabaseUser?.email) {
+      const email = supabaseUser.email.toLowerCase();
+      const matched = members.find(m => m.email?.toLowerCase() === email);
+      if (matched && (matched.role === 'ប្រធានក្លឹប' || matched.role === 'បេឡាធិការ')) return true;
+    }
+    return false;
+  }, [currentUser, supabaseUser, members]);
+
+  const isPresident = useMemo(() => {
+    if (currentUser && currentUser.role === 'ប្រធានក្លឹប') return true;
+    if (supabaseUser?.email) {
+      const email = supabaseUser.email.toLowerCase();
+      const matched = members.find(m => m.email?.toLowerCase() === email);
+      if (matched && matched.role === 'ប្រធានក្លឹប') return true;
+    }
+    return false;
+  }, [currentUser, supabaseUser, members]);
+
+  const isTreasurer = useMemo(() => {
+    if (currentUser && currentUser.role === 'បេឡាធិការ') return true;
+    if (supabaseUser?.email) {
+      const email = supabaseUser.email.toLowerCase();
+      const matched = members.find(m => m.email?.toLowerCase() === email);
+      if (matched && matched.role === 'បេឡាធិការ') return true;
+    }
+    return false;
+  }, [currentUser, supabaseUser, members]);
+
+  const isYearClosed = useCallback((year: number) => {
+    return fiscalClosings.some(c => Number(c.fiscalYear) === Number(year));
+  }, [fiscalClosings]);
 
   // 1. Listen for Supabase Auth changes
   useEffect(() => {
@@ -180,14 +280,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (memberErr) throw memberErr;
 
-      // Auto-seed if database is brand new and empty
-      if (!memberRows || memberRows.length === 0) {
-        console.log('Database empty! Auto-seeding initial data in strict order...');
-        await seedInitialDataToSupabase();
-        return;
-      }
-
-      const mappedMembers = memberRows.map(mapMemberFromRow);
+      const mappedMembers = (memberRows || []).map(mapMemberFromRow);
       setMembers(mappedMembers);
 
       const memberMap: Record<string, Member> = {};
@@ -197,32 +290,37 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (supabaseUser?.email) {
         const matched = mappedMembers.find(m => m.email?.toLowerCase() === supabaseUser.email?.toLowerCase());
         setCurrentUser(prev => prev ? (mappedMembers.find(m => m.id === prev.id) || matched || mappedMembers[0]) : (matched || mappedMembers[0]));
-      } else {
+      } else if (mappedMembers.length > 0) {
         setCurrentUser(prev => prev ? (mappedMembers.find(m => m.id === prev.id) || mappedMembers[0]) : mappedMembers[0]);
       }
 
-      // 2. Monthly Savings
-      const { data: savingRows, error: savingErr } = await supabase
+      // 2. Club Settings
+      try {
+        const { data: setRows } = await supabase.from('club_settings').select('*').limit(1);
+        if (setRows && setRows.length > 0) {
+          setClubSettings(mapClubSettingsFromRow(setRows[0]));
+        }
+      } catch (e) {
+        console.warn('club_settings fetch warning:', e);
+      }
+
+      // 3. Monthly Savings
+      const { data: savingRows } = await supabase
         .from('monthly_savings')
         .select('*')
         .order('payment_date', { ascending: false });
 
-      if (savingErr) throw savingErr;
-      setSavingsRecords((savingRows || []).map(r => mapSavingFromRow(r, memberMap)));
+      if (savingRows) setSavingsRecords(savingRows.map(r => mapSavingFromRow(r, memberMap)));
 
-      // 3. Loans & Repayment Schedules
-      const { data: loanRows, error: loanErr } = await supabase
+      // 4. Loans & Repayment Schedules
+      const { data: loanRows } = await supabase
         .from('loans')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (loanErr) throw loanErr;
-
-      const { data: scheduleRows, error: scheduleErr } = await supabase
+      const { data: scheduleRows } = await supabase
         .from('loan_repayment_schedules')
         .select('*');
-
-      if (scheduleErr) throw scheduleErr;
 
       const scheduleMap: Record<string, any[]> = {};
       (scheduleRows || []).forEach(s => {
@@ -231,71 +329,86 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         scheduleMap[lid].push(s);
       });
 
-      const mappedLoans = (loanRows || []).map(l => mapLoanFromRow(l, scheduleMap[String(l.id)] || []));
-      setLoans(mappedLoans);
+      if (loanRows) {
+        setLoans(loanRows.map(l => mapLoanFromRow(l, scheduleMap[String(l.id)] || [])));
+      }
 
-      // 4. Loan Payments (Repayment History)
-      const { data: paymentRows, error: payErr } = await supabase
+      // 5. Loan Payments
+      const { data: paymentRows } = await supabase
         .from('loan_payments')
         .select('*')
         .order('payment_date', { ascending: false });
 
-      if (!payErr && paymentRows) {
-        setPayments(paymentRows.map(mapLoanPaymentFromRow));
-      }
+      if (paymentRows) setPayments(paymentRows.map(mapLoanPaymentFromRow));
 
-      // 5. Loan Applications
-      const { data: appRows, error: appErr } = await supabase
+      // 6. Loan Applications
+      const { data: appRows } = await supabase
         .from('loan_applications')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!appErr && appRows) {
-        setApplications(appRows.map(mapApplicationFromRow));
-      }
+      if (appRows) setApplications(appRows.map(mapApplicationFromRow));
 
-      // 6. Notifications log
-      const { data: notifRows, error: notifErr } = await supabase
-        .from('notifications_log')
-        .select('*');
+      // 7. Notifications log
+      const { data: notifRows } = await supabase.from('notifications_log').select('*');
+      if (notifRows) setSentReminderIds(notifRows.map(n => String(n.id || n.loan_id)));
 
-      if (!notifErr && notifRows) {
-        setSentReminderIds(notifRows.map(n => String(n.id || n.loan_id)));
-      }
-
-      // 7. Officer terms
-      const { data: termRows, error: termErr } = await supabase
+      // 8. Officer terms
+      const { data: termRows } = await supabase
         .from('officer_terms')
         .select('*')
         .order('term_start', { ascending: false });
 
-      if (!termErr && termRows && termRows.length > 0) {
+      if (termRows && termRows.length > 0) {
         setOfficerTerms(termRows.map(r => mapOfficerTermFromRow(r, memberMap)));
-      } else {
-        const pres = mappedMembers.find(m => m.role === 'ប្រធានក្លឹប');
-        const treas = mappedMembers.find(m => m.role === 'បេឡាធិការ');
-        const defaultTerms: OfficerTerm[] = [];
-        if (pres) {
-          defaultTerms.push({
-            id: crypto.randomUUID(),
-            memberId: pres.id,
-            memberName: pres.nameKhmer,
-            role: 'ប្រធានក្លឹប',
-            termStart: '2024-01-01',
-            termEnd: null
-          });
-        }
-        if (treas) {
-          defaultTerms.push({
-            id: crypto.randomUUID(),
-            memberId: treas.id,
-            memberName: treas.nameKhmer,
-            role: 'បេឡាធិការ',
-            termStart: '2024-01-01',
-            termEnd: null
-          });
-        }
-        setOfficerTerms(defaultTerms);
+      }
+
+      // 9. Expenses
+      try {
+        const { data: expRows } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false });
+        if (expRows) setExpenses(expRows.map(mapExpenseFromRow));
+      } catch (e) {
+        console.warn('expenses fetch warning:', e);
+      }
+
+      // 10. Cash Reconciliations
+      try {
+        const { data: recRows } = await supabase.from('cash_reconciliations').select('*').order('period_year', { ascending: false }).order('period_month', { ascending: false });
+        if (recRows) setReconciliations(recRows.map(mapReconciliationFromRow));
+      } catch (e) {
+        console.warn('cash_reconciliations fetch warning:', e);
+      }
+
+      // 11. Fiscal Year Closings
+      try {
+        const { data: closeRows } = await supabase.from('fiscal_year_closings').select('*').order('fiscal_year', { ascending: false });
+        if (closeRows) setFiscalClosings(closeRows.map(mapFiscalClosingFromRow));
+      } catch (e) {
+        console.warn('fiscal_year_closings fetch warning:', e);
+      }
+
+      // 12. Loan Approvals
+      try {
+        const { data: appvRows } = await supabase.from('loan_approvals').select('*').order('created_at', { ascending: false });
+        if (appvRows) setLoanApprovals(appvRows.map(mapLoanApprovalFromRow));
+      } catch (e) {
+        console.warn('loan_approvals fetch warning:', e);
+      }
+
+      // 13. Member Exits
+      try {
+        const { data: exitRows } = await supabase.from('member_exits').select('*').order('exit_date', { ascending: false });
+        if (exitRows) setMemberExits(exitRows.map(r => mapMemberExitFromRow(r, memberMap)));
+      } catch (e) {
+        console.warn('member_exits fetch warning:', e);
+      }
+
+      // 14. Audit Log
+      try {
+        const { data: logRows } = await supabase.from('audit_log').select('*').order('changed_at', { ascending: false }).limit(200);
+        if (logRows) setAuditLogs(logRows.map(mapAuditLogFromRow));
+      } catch (e) {
+        console.warn('audit_log fetch warning:', e);
       }
 
     } catch (err: any) {
@@ -305,65 +418,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoadingData(false);
     }
   }, [supabaseUser]);
-
-  // Seed initial dataset into fresh Supabase tables in strict foreign key order
-  const seedInitialDataToSupabase = async () => {
-    try {
-      // Step 1: Members
-      const memberRows = INITIAL_MEMBERS.map(mapMemberToRow);
-      const { error: memErr } = await supabase.from('members').insert(memberRows);
-      if (memErr) {
-        handleSupabaseError(memErr, 'Seed Members');
-        return;
-      }
-
-      // Step 2: Monthly Savings
-      const savingRows = INITIAL_SAVINGS_RECORDS.map(mapSavingToRow);
-      const { error: savErr } = await supabase.from('monthly_savings').insert(savingRows);
-      if (savErr) {
-        handleSupabaseError(savErr, 'Seed Monthly Savings');
-        return;
-      }
-
-      // Step 3: Loans
-      const loanRows = INITIAL_LOANS.map(mapLoanToRow);
-      const { error: loanErr } = await supabase.from('loans').insert(loanRows);
-      if (loanErr) {
-        handleSupabaseError(loanErr, 'Seed Loans');
-        return;
-      }
-
-      // Step 4: Loan Repayment Schedules
-      const allSchedules: Record<string, any>[] = [];
-      INITIAL_LOANS.forEach(l => {
-        l.schedule.forEach(s => {
-          allSchedules.push(mapScheduleToRow(s, l.id));
-        });
-      });
-      const { error: schedErr } = await supabase.from('loan_repayment_schedules').insert(allSchedules);
-      if (schedErr) {
-        handleSupabaseError(schedErr, 'Seed Schedules');
-        return;
-      }
-
-      // Step 5: Loan Applications
-      const appRows = INITIAL_APPLICATIONS.map(mapApplicationToRow);
-      const { error: appErr } = await supabase.from('loan_applications').insert(appRows);
-      if (appErr) {
-        handleSupabaseError(appErr, 'Seed Loan Applications');
-        return;
-      }
-
-      console.log('Auto-seed completed successfully in strict table order!');
-      await fetchDataFromSupabase();
-
-    } catch (e: any) {
-      console.error('Error seeding Supabase:', e);
-      setSupabaseError('Seeding initial data failed: ' + e.message);
-    } finally {
-      setIsLoadingData(false);
-    }
-  };
 
   // Realtime Channel
   useEffect(() => {
@@ -391,7 +445,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Derived Notifications (SMS Reminders)
   const notifications = useMemo(() => {
     const list: NotificationReminder[] = [];
-    const today = new Date('2026-10-27');
+    const today = new Date('2026-10-30');
 
     loans.forEach(loan => {
       if (loan.status === 'COMPLETED' || loan.status === 'REJECTED') return;
@@ -416,7 +470,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const notifId = `notif-${loan.id}-${inst.installmentNumber}`;
           const isSent = sentReminderIds.includes(notifId);
 
-          const smsKhmer = `[ឌឹ បេស៍ ហ្វាមីលី ក្លឹប / THE BEST CLUB]\nជម្រាបសួរលោក/លោកស្រី ${loan.borrowerName},\nសូមជម្រាបរំលឹកពីកាលវិភាគបង់ប្រាក់កម្ចី (លើកទី ${inst.installmentNumber}) ទឹកប្រាក់សរុប $${inst.totalDue} ផុតកំណត់នៅថ្ងៃទី ${inst.dueDate}។\nសូមធ្វើការផ្ទេរប្រាក់មកគណនី ABA: 001 234 567 (The Best Club) ឬទាក់ទង 012 889 901។ សូមអរគុណ!`;
+          const smsKhmer = `[${clubSettings.clubNameKhmer}]\nជម្រាបសួរលោក/លោកស្រី ${loan.borrowerName},\nសូមជម្រាបរំលឹកពីកាលវិភាគបង់ប្រាក់កម្ចី (លើកទី ${inst.installmentNumber}) ទឹកប្រាក់សរុប $${inst.totalDue} ផុតកំណត់នៅថ្ងៃទី ${inst.dueDate}។\nសូមធ្វើការផ្ទេរប្រាក់មកគណនី ABA: 001 234 567 (${clubSettings.clubNameKhmer}) ឬទាក់ទង 012 889 901។ សូមអរគុណ!`;
 
           list.push({
             id: notifId,
@@ -439,17 +493,23 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const order = { OVERDUE: 0, DUE_TODAY: 1, UPCOMING: 2 };
       return order[a.status] - order[b.status];
     });
-  }, [loans, sentReminderIds]);
+  }, [loans, sentReminderIds, clubSettings.clubNameKhmer]);
 
   // Derived Financial Stats
   const stats: ClubStats = useMemo(() => {
-    const totalClubSavings = members.reduce((sum, m) => sum + m.totalSavings, 0);
+    const activeMembers = members.filter(m => m.status === 'ACTIVE');
+    const totalClubSavings = activeMembers.reduce((sum, m) => sum + m.totalSavings, 0);
     const totalActiveLoans = loans
       .filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE')
       .reduce((sum, l) => sum + l.remainingBalance, 0);
 
     const totalInterestEarned = loans.reduce((sum, l) => sum + l.totalPaidInterest, 0);
-    const cashOnHand = totalClubSavings - totalActiveLoans + totalInterestEarned;
+    const totalLateFeesEarned = payments.reduce((sum, p) => sum + (p.lateFee || 0), 0);
+    const totalExpenses = expenses.filter(e => !e.isVoided).reduce((sum, e) => sum + e.amount, 0);
+
+    // Dashboard cash on hand formula:
+    // total savings + interest and late fees collected - outstanding loan principal - non-voided expenses
+    const cashOnHand = totalClubSavings + totalInterestEarned + totalLateFeesEarned - totalActiveLoans - totalExpenses;
 
     const activeLoanCount = loans.filter(l => l.status === 'ACTIVE').length;
     const overdueLoansCount = loans.filter(l => l.status === 'OVERDUE').length;
@@ -459,13 +519,15 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalClubSavings,
       totalActiveLoans,
       totalInterestEarned,
+      totalLateFeesEarned,
+      totalExpenses,
       cashOnHand,
-      memberCount: members.length,
+      memberCount: activeMembers.length,
       activeLoanCount,
       overdueLoansCount,
       upcomingDueCount
     };
-  }, [members, loans, notifications]);
+  }, [members, loans, payments, expenses, notifications]);
 
   // MUTATION ACTIONS
 
@@ -487,6 +549,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         handleSupabaseError(error, 'Add Member');
         return;
       }
+      await insertAuditLog('members', newMember.id, 'INSERT', null, newMember, supabaseUser?.email || 'Officer');
       await fetchDataFromSupabase();
     } else {
       setMembers(prev => [...prev, newMember]);
@@ -505,6 +568,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         handleSupabaseError(error, 'Update Member');
         return;
       }
+      await insertAuditLog('members', updated.id, 'UPDATE', null, updated, supabaseUser?.email || 'Officer');
       await fetchDataFromSupabase();
     } else {
       setMembers(prev => prev.map(m => m.id === updated.id ? updated : m));
@@ -513,6 +577,11 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 3. Add Savings Record
   const addSavingsRecord = async (recordData: Omit<MonthlySavingRecord, 'id'>) => {
+    if (isYearClosed(recordData.year)) {
+      alert(`ឆ្នាំ ${recordData.year} ត្រូវបានបិទបញ្ជីរួចរាល់ហើយ! មិនអាចបន្ថែមប្រាក់សន្សំបានទេ។`);
+      return;
+    }
+
     const newRecord: MonthlySavingRecord = {
       ...recordData,
       id: crypto.randomUUID()
@@ -539,6 +608,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      await insertAuditLog('monthly_savings', newRecord.id, 'INSERT', null, newRecord, supabaseUser?.email || 'Officer');
       await fetchDataFromSupabase();
     } else {
       setSavingsRecords(prev => [newRecord, ...prev]);
@@ -550,7 +620,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Helper to recalculate member total savings from monthly_savings table in Supabase
+  // Helper to recalculate member total savings
   const recalculateMemberSavings = async (memberId: string) => {
     if (!isSupabaseConfigured) return;
     try {
@@ -573,6 +643,11 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Update Savings Record
   const updateSavingsRecord = async (updatedRecord: MonthlySavingRecord): Promise<boolean> => {
+    if (isYearClosed(updatedRecord.year)) {
+      alert(`ឆ្នាំ ${updatedRecord.year} ត្រូវបានបិទបញ្ជីរួចរាល់ហើយ! មិនអាចកែប្រែប្រាក់សន្សំបានទេ។`);
+      return false;
+    }
+
     const oldRecord = savingsRecords.find(r => r.id === updatedRecord.id);
     const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Admin (គណៈកម្មការ)';
 
@@ -602,7 +677,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       await insertAuditLog('monthly_savings', updatedRecord.id, 'UPDATE', oldRecord, updatedRecord, userEmail);
       
-      // Recalculate total_savings for member(s)
       await recalculateMemberSavings(updatedRecord.memberId);
       if (oldRecord && oldRecord.memberId !== updatedRecord.memberId) {
         await recalculateMemberSavings(oldRecord.memberId);
@@ -620,6 +694,11 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteSavingsRecord = async (recordId: string): Promise<boolean> => {
     const target = savingsRecords.find(r => r.id === recordId);
     if (!target) return false;
+
+    if (isYearClosed(target.year)) {
+      alert(`ឆ្នាំ ${target.year} ត្រូវបានបិទបញ្ជីរួចរាល់ហើយ! មិនអាចលុបប្រាក់សន្សំបានទេ។`);
+      return false;
+    }
 
     const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Admin (គណៈកម្មការ)';
 
@@ -663,7 +742,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      // If financial params changed & allowed, regenerate repayment schedule
       if (regenerateSchedule) {
         await supabase.from('loan_repayment_schedules').delete().eq('loan_id', updatedLoan.id);
         
@@ -726,6 +804,12 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Update Loan Payment
   const updateLoanPayment = async (updatedPayment: LoanPayment): Promise<boolean> => {
+    const year = new Date(updatedPayment.paymentDate).getFullYear();
+    if (isYearClosed(year)) {
+      alert(`ឆ្នាំ ${year} ត្រូវបានបិទបញ្ជីរួចរាល់ហើយ! មិនអាចកែប្រែការបង់ប្រាក់បានទេ។`);
+      return false;
+    }
+
     const oldPayment = payments.find(p => p.id === updatedPayment.id);
     if (!oldPayment) return false;
 
@@ -758,7 +842,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...appData,
       id: crypto.randomUUID(),
       status: 'PENDING',
-      appliedDate: formatDateStr('2026-10-27')
+      appliedDate: formatDateStr('2026-10-30')
     };
 
     if (isSupabaseConfigured) {
@@ -767,6 +851,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         handleSupabaseError(error, 'Submit Loan Application');
         return;
       }
+      await insertAuditLog('loan_applications', newApp.id, 'INSERT', null, newApp, supabaseUser?.email || 'Applicant');
       await fetchDataFromSupabase();
     } else {
       setApplications(prev => [newApp, ...prev]);
@@ -778,9 +863,14 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const app = applications.find(a => a.id === appId);
     if (!app) return;
 
+    if (app.status !== 'APPROVED') {
+      alert('ពាក្យស្នើសុំនេះត្រូវតែមានការអនុម័តពីគណៈកម្មការ ២ រូបជាមុនសិន!');
+      return;
+    }
+
     const rate = customRate !== undefined 
       ? customRate 
-      : (app.proposedInterestRate !== undefined ? app.proposedInterestRate : (app.applicantType === 'MEMBER' ? 1.2 : 2.5));
+      : (app.proposedInterestRate !== undefined ? app.proposedInterestRate : (app.applicantType === 'MEMBER' ? clubSettings.memberLoanRate : clubSettings.externalLoanRate));
 
     const method = customMethod || app.interestMethod || 'DECLINING';
     const newLoanId = crypto.randomUUID();
@@ -789,7 +879,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       app.requestedAmount,
       rate,
       app.proposedTermMonths,
-      '2026-10-27',
+      '2026-10-30',
       method
     );
 
@@ -810,8 +900,8 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       monthlyInterestRate: rate,
       interestMethod: method,
       termMonths: app.proposedTermMonths,
-      startDate: '2026-10-27',
-      endDate: schedule[schedule.length - 1]?.dueDate || '2027-04-27',
+      startDate: '2026-10-30',
+      endDate: schedule[schedule.length - 1]?.dueDate || '2027-04-30',
       purpose: app.purpose,
       guarantorName: app.guarantorName,
       guarantorPhone: app.guarantorPhone,
@@ -825,34 +915,26 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       schedule,
       approvedBy: 'គណៈកម្មការសមាគម The Best Club',
       contractNumber: `CTR-${app.applicantType === 'MEMBER' ? 'MEM' : 'EXT'}-2026-${Date.now().toString().slice(-4)}`,
-      createdAt: '2026-10-27'
+      createdAt: '2026-10-30'
     };
 
     if (isSupabaseConfigured) {
-      // Step 1: Insert Loan
       const { error: loanErr } = await supabase.from('loans').insert([mapLoanToRow(newLoan)]);
       if (loanErr) {
-        handleSupabaseError(loanErr, 'Approve Loan');
+        handleSupabaseError(loanErr, 'Disburse Loan Contract');
         return;
       }
 
-      // Step 2: Insert Schedules
       const schedRows = schedule.map(s => mapScheduleToRow(s, newLoan.id));
       const { error: schedErr } = await supabase.from('loan_repayment_schedules').insert(schedRows);
       if (schedErr) {
         handleSupabaseError(schedErr, 'Create Amortization Schedule');
       }
 
-      // Step 3: Update Application
-      const { error: appErr } = await supabase.from('loan_applications').update({ status: 'APPROVED' }).eq('id', appId);
-      if (appErr) {
-        handleSupabaseError(appErr, 'Update Application Status');
-      }
-
+      await insertAuditLog('loans', newLoan.id, 'INSERT', null, newLoan, supabaseUser?.email || 'Officer');
       await fetchDataFromSupabase();
     } else {
       setLoans(prev => [newLoan, ...prev]);
-      setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'APPROVED' } : a));
     }
   };
 
@@ -864,14 +946,21 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         handleSupabaseError(error, 'Reject Application');
         return;
       }
+      await insertAuditLog('loan_applications', appId, 'UPDATE', null, { status: 'REJECTED' }, supabaseUser?.email || 'Officer');
       await fetchDataFromSupabase();
     } else {
       setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'REJECTED' } : a));
     }
   };
 
-  // 7. RECORD LOAN PAYMENT TRANSACTION (FULL REPAYMENT & PARTIAL SUPPORT)
+  // 7. RECORD LOAN PAYMENT TRANSACTION
   const recordLoanPaymentTransaction = async (paymentData: Omit<LoanPayment, 'id'>): Promise<boolean> => {
+    const year = new Date(paymentData.paymentDate).getFullYear();
+    if (isYearClosed(year)) {
+      alert(`ឆ្នាំ ${year} ត្រូវបានបិទបញ្ជីរួចរាល់ហើយ! មិនអាចកត់ត្រាការបង់ប្រាក់កម្ចីបានទេ។`);
+      return false;
+    }
+
     const targetLoan = loans.find(l => l.id === paymentData.loanId);
     if (!targetLoan) return false;
 
@@ -882,7 +971,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     if (isSupabaseConfigured) {
-      // 1. Insert into loan_payments table
       const { error: payErr } = await supabase
         .from('loan_payments')
         .insert([mapLoanPaymentToRow(paymentRecord)]);
@@ -892,12 +980,10 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      // 2. Update loan_repayment_schedules
       const instNum = paymentData.installmentNumber || 1;
       const targetInst = targetLoan.schedule.find(s => s.installmentNumber === instNum);
       const fullDue = targetInst ? targetInst.totalDue : paymentData.amountPaid;
 
-      // Status: PAID if amountPaid >= totalDue, else PARTIAL
       const isFull = paymentData.amountPaid >= fullDue;
       const newInstStatus = isFull ? 'PAID' : 'PARTIAL';
 
@@ -915,8 +1001,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         handleSupabaseError(schedErr, 'Update Repayment Schedule');
       }
 
-      // 3. Re-calculate loan status & remaining balance
-      // Fetch all updated schedules for this loan
       const { data: latestSchedules } = await supabase
         .from('loan_repayment_schedules')
         .select('*')
@@ -927,7 +1011,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (latestSchedules && latestSchedules.length > 0) {
         const allPaid = latestSchedules.every(s => s.status === 'PAID');
-        const todayStr = '2026-10-29';
+        const todayStr = '2026-10-30';
         const hasOverdue = latestSchedules.some(s => s.status !== 'PAID' && s.due_date < todayStr);
 
         if (allPaid) {
@@ -955,10 +1039,9 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         handleSupabaseError(loanErr, 'Update Loan Overall Status');
       }
 
-      // Re-fetch all data from Supabase
+      await insertAuditLog('loan_payments', newPaymentId, 'INSERT', null, paymentRecord, supabaseUser?.email || 'Officer');
       await fetchDataFromSupabase();
 
-      // Show Printable Receipt
       setSelectedReceiptForPrint({
         payment: paymentRecord,
         loan: targetLoan
@@ -967,9 +1050,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
 
     } else {
-      // Local fallback
       setPayments(prev => [paymentRecord, ...prev]);
-      
       setSelectedReceiptForPrint({
         payment: paymentRecord,
         loan: targetLoan
@@ -983,8 +1064,13 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const payment = payments.find(p => p.id === paymentId);
     if (!payment) return false;
 
+    const year = new Date(payment.paymentDate).getFullYear();
+    if (isYearClosed(year)) {
+      alert(`ឆ្នាំ ${year} ត្រូវបានបិទបញ្ជីរួចរាល់ហើយ! មិនអាចលុបការបង់ប្រាក់បានទេ។`);
+      return false;
+    }
+
     if (isSupabaseConfigured) {
-      // 1. Delete from loan_payments
       const { error: delErr } = await supabase
         .from('loan_payments')
         .delete()
@@ -995,7 +1081,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      // 2. Reset schedule item status back to PENDING (or OVERDUE)
       if (payment.installmentNumber) {
         const { error: schedErr } = await supabase
           .from('loan_repayment_schedules')
@@ -1012,7 +1097,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // 3. Update loan status back to ACTIVE
       const { error: loanErr } = await supabase
         .from('loans')
         .update({ status: 'ACTIVE' })
@@ -1022,6 +1106,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         handleSupabaseError(loanErr, 'Reset Loan Status');
       }
 
+      await insertAuditLog('loan_payments', paymentId, 'DELETE', payment, null, supabaseUser?.email || 'Officer');
       await fetchDataFromSupabase();
       return true;
     } else {
@@ -1083,6 +1168,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: noRowErr };
       }
 
+      await insertAuditLog('members', memberId, 'UPDATE', null, updatedData, supabaseUser?.email || 'Officer');
       await fetchDataFromSupabase();
       return { success: true };
     } else {
@@ -1112,7 +1198,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseConfigured) {
       console.log(`Calling RPC transfer_office with p_role="${role}", p_new_member_id="${p_new_member_id}", p_effective="${p_effective}"`);
       
-      const { data, error } = await supabase.rpc('transfer_office', {
+      const { error } = await supabase.rpc('transfer_office', {
         p_role: role,
         p_new_member_id: p_new_member_id,
         p_effective: p_effective
@@ -1122,7 +1208,6 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('[Supabase RPC transfer_office Error]:', error);
         const errText = error.message || error.details || error.hint || JSON.stringify(error);
 
-        // Fallback: Direct database updates to members and officer_terms so data is saved in Supabase
         try {
           await supabase
             .from('officer_terms')
@@ -1159,10 +1244,10 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      await insertAuditLog('officer_terms', p_new_member_id, 'INSERT', null, { role, p_effective }, currentUser?.email || 'President');
       await fetchDataFromSupabase();
       return { success: true };
     } else {
-      // Local fallback
       const oldOfficer = members.find(m => m.role === role);
       const newMember = members.find(m => m.id === newMemberId);
       if (oldOfficer && newMember) {
@@ -1187,6 +1272,379 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       return { success: true };
+    }
+  };
+
+  // FEATURE ACTIONS (SETTINGS, EXPENSES, RECONCILIATION, CLOSING, APPROVALS, EXIT)
+
+  // 1. UPDATE CLUB SETTINGS
+  const updateClubSettings = async (updated: Partial<ClubSettings>): Promise<boolean> => {
+    if (!isOfficer) {
+      alert('មានតែប្រធានក្លឹប ឬបេឡាធិការប៉ុណ្ណោះដែលមានសិទ្ធិកែប្រែការកំណត់!');
+      return false;
+    }
+
+    const merged = { ...clubSettings, ...updated };
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Officer';
+
+    if (isSupabaseConfigured) {
+      const row = mapClubSettingsToRow(merged);
+      const { error } = await supabase.from('club_settings').upsert(row);
+      if (error) {
+        handleSupabaseError(error, 'Update Club Settings');
+        return false;
+      }
+      await insertAuditLog('club_settings', '1', 'UPDATE', clubSettings, merged, userEmail);
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setClubSettings(merged);
+      return true;
+    }
+  };
+
+  // 2. ADD EXPENSE
+  const addExpense = async (data: Omit<ExpenseRecord, 'id' | 'isVoided' | 'recordedBy'>): Promise<boolean> => {
+    if (!isOfficer) {
+      alert('មានតែប្រធានក្លឹប ឬបេឡាធិការប៉ុណ្ណោះដែលមានសិទ្ធិកត់ត្រាចំណាយ!');
+      return false;
+    }
+
+    const year = new Date(data.expenseDate).getFullYear();
+    if (isYearClosed(year)) {
+      alert(`ឆ្នាំ ${year} ត្រូវបានបិទបញ្ជីរួចរាល់ហើយ! មិនអាចបន្ថែមចំណាយបានទេ។`);
+      return false;
+    }
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Officer';
+    const newId = crypto.randomUUID();
+    const record: ExpenseRecord = {
+      ...data,
+      id: newId,
+      isVoided: false,
+      recordedBy: userEmail,
+      createdAt: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('expenses').insert([mapExpenseToRow(record)]);
+      if (error) {
+        handleSupabaseError(error, 'Add Expense');
+        return false;
+      }
+      await insertAuditLog('expenses', newId, 'INSERT', null, record, userEmail);
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setExpenses(prev => [record, ...prev]);
+      return true;
+    }
+  };
+
+  // 3. VOID EXPENSE
+  const voidExpense = async (expenseId: string, voidReason: string): Promise<boolean> => {
+    if (!isOfficer) {
+      alert('មានតែប្រធានក្លឹប ឬបេឡាធិការប៉ុណ្ណោះដែលមានសិទ្ធិបោះបង់ចំណាយ!');
+      return false;
+    }
+
+    if (!voidReason.trim()) {
+      alert('សូមបញ្ចូលមូលហេតុនៃការបោះបង់ (Void Reason)!');
+      return false;
+    }
+
+    const target = expenses.find(e => e.id === expenseId);
+    if (!target) return false;
+
+    const year = new Date(target.expenseDate).getFullYear();
+    if (isYearClosed(year)) {
+      alert(`ឆ្នាំ ${year} ត្រូវបានបិទបញ្ជីរួចរាល់ហើយ! មិនអាចបោះបង់ចំណាយបានទេ។`);
+      return false;
+    }
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Officer';
+    const voidedAt = new Date().toISOString();
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('expenses').update({
+        is_voided: true,
+        voided_by: userEmail,
+        void_reason: voidReason.trim(),
+        voided_at: voidedAt
+      }).eq('id', expenseId);
+
+      if (error) {
+        handleSupabaseError(error, 'Void Expense');
+        return false;
+      }
+      await insertAuditLog('expenses', expenseId, 'VOID', target, { ...target, isVoided: true, voidReason, voidedBy: userEmail, voidedAt }, userEmail);
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setExpenses(prev => prev.map(e => e.id === expenseId ? { ...e, isVoided: true, voidReason: voidReason.trim(), voidedBy: userEmail, voidedAt } : e));
+      return true;
+    }
+  };
+
+  // 4. ADD CASH RECONCILIATION
+  const addReconciliation = async (data: Omit<CashReconciliation, 'id' | 'difference' | 'recordedBy'>): Promise<boolean> => {
+    if (!isOfficer) {
+      alert('មានតែប្រធានក្លឹប ឬបេឡាធិការប៉ុណ្ណោះដែលមានសិទ្ធិផ្ទៀងផ្ទាត់សាច់ប្រាក់!');
+      return false;
+    }
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Officer';
+    const newId = crypto.randomUUID();
+    const record: CashReconciliation = {
+      ...data,
+      id: newId,
+      difference: (data.actualCash + data.actualBank) - data.systemBalance,
+      recordedBy: userEmail,
+      createdAt: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured) {
+      const row = mapReconciliationToRow(record);
+      const { error } = await supabase.from('cash_reconciliations').upsert(row, { onConflict: 'period_year,period_month' });
+      if (error) {
+        handleSupabaseError(error, 'Add Cash Reconciliation');
+        return false;
+      }
+      await insertAuditLog('cash_reconciliations', newId, 'INSERT', null, record, userEmail);
+      await fetchDataFromSupabase();
+      return true;
+    } else {
+      setReconciliations(prev => [record, ...prev.filter(r => !(r.periodYear === data.periodYear && r.periodMonth === data.periodMonth))]);
+      return true;
+    }
+  };
+
+  // 5. CLOSE FISCAL YEAR
+  const closeFiscalYear = async (fiscalYear: number, notes?: string): Promise<{ success: boolean; error?: string }> => {
+    if (!isPresident) {
+      return { success: false, error: 'មានតែប្រធានក្លឹបប៉ុណ្ណោះដែលមានសិទ្ធិបិទបញ្ជីប្រចាំឆ្នាំ!' };
+    }
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'President';
+
+    const yearSavings = savingsRecords.filter(s => s.year === fiscalYear).reduce((sum, s) => sum + s.amount, 0);
+    const yearPayments = payments.filter(p => new Date(p.paymentDate).getFullYear() === fiscalYear);
+    const interestIncome = yearPayments.reduce((sum, p) => sum + p.interestPaid, 0);
+    const lateFees = yearPayments.reduce((sum, p) => sum + p.lateFee, 0);
+    const yearExpenses = expenses.filter(e => !e.isVoided && new Date(e.expenseDate).getFullYear() === fiscalYear).reduce((sum, e) => sum + e.amount, 0);
+    const netProfit = interestIncome + lateFees - yearExpenses;
+    const totalDividends = Math.max(0, netProfit);
+
+    if (isSupabaseConfigured) {
+      const { error: rpcErr } = await supabase.rpc('close_fiscal_year', {
+        p_year: fiscalYear,
+        p_total_dividends: totalDividends,
+        p_notes: notes || null
+      });
+
+      if (rpcErr) {
+        console.warn('RPC close_fiscal_year failed, doing direct fallback:', rpcErr);
+        const newId = crypto.randomUUID();
+        const closingRow = mapFiscalClosingToRow({
+          id: newId,
+          fiscalYear,
+          totalSavings: yearSavings,
+          interestIncome,
+          lateFees,
+          totalExpenses: yearExpenses,
+          netProfit,
+          totalDividends,
+          closedBy: userEmail,
+          notes
+        });
+
+        const { error: insertErr } = await supabase.from('fiscal_year_closings').insert([closingRow]);
+        if (insertErr) {
+          handleSupabaseError(insertErr, 'Close Fiscal Year');
+          return { success: false, error: insertErr.message };
+        }
+        await insertAuditLog('fiscal_year_closings', newId, 'INSERT', null, closingRow, userEmail);
+      } else {
+        await insertAuditLog('fiscal_year_closings', String(fiscalYear), 'INSERT', null, { fiscalYear, totalDividends }, userEmail);
+      }
+
+      await fetchDataFromSupabase();
+      return { success: true };
+    } else {
+      setFiscalClosings(prev => [...prev.filter(f => f.fiscalYear !== fiscalYear), {
+        id: crypto.randomUUID(),
+        fiscalYear,
+        totalSavings: yearSavings,
+        interestIncome,
+        lateFees,
+        totalExpenses: yearExpenses,
+        netProfit,
+        totalDividends,
+        closedBy: userEmail,
+        closedAt: new Date().toISOString(),
+        notes
+      }]);
+      return { success: true };
+    }
+  };
+
+  // 6. DECIDE LOAN APPLICATION (TWO-OFFICER APPROVAL)
+  const decideLoanApplication = async (
+    applicationId: string, 
+    decision: 'APPROVED' | 'REJECTED', 
+    comment?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!isOfficer) {
+      return { success: false, error: 'មានតែប្រធានក្លឹប ឬបេឡាធិការប៉ុណ្ណោះដែលមានសិទ្ធិអនុម័តកម្ចី!' };
+    }
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Officer';
+    const officerRole = (currentUser?.role === 'ប្រធានក្លឹប' || currentUser?.role === 'បេឡាធិការ') 
+      ? currentUser.role 
+      : 'ប្រធានក្លឹប';
+
+    const app = applications.find(a => a.id === applicationId);
+    if (!app) return { success: false, error: 'រកមិនឃើញពាក្យស្នើសុំកម្ចីទេ' };
+
+    // Prevent approving own loan application
+    if (app.memberId && currentUser?.id === app.memberId) {
+      const errText = 'អ្នកមិនអាចអនុម័ត ឬបដិសេធពាក្យស្នើសុំកម្ចីរបស់ខ្លួនឯងបានទេ!';
+      alert(errText);
+      return { success: false, error: errText };
+    }
+
+    if (isSupabaseConfigured) {
+      const { error: rpcErr } = await supabase.rpc('decide_loan_application', {
+        p_application_id: applicationId,
+        p_decision: decision,
+        p_comment: comment || null
+      });
+
+      if (rpcErr) {
+        console.warn('RPC decide_loan_application failed/missing, doing direct fallback:', rpcErr);
+        
+        // Direct Fallback
+        const approvalId = crypto.randomUUID();
+        const approvalRow = mapLoanApprovalToRow({
+          id: approvalId,
+          applicationId,
+          officerId: currentUser?.id,
+          officerName: currentUser?.nameKhmer || 'Officer',
+          officerRole: officerRole as any,
+          decision,
+          comment
+        });
+
+        const { error: appvErr } = await supabase.from('loan_approvals').upsert(approvalRow, { onConflict: 'application_id,officer_role' });
+        if (appvErr) {
+          handleSupabaseError(appvErr, 'Save Loan Approval');
+          return { success: false, error: appvErr.message };
+        }
+
+        // Query approvals for this application
+        const { data: appvs } = await supabase.from('loan_approvals').select('*').eq('application_id', applicationId);
+        let newAppStatus: 'PENDING' | 'APPROVED' | 'REJECTED' = 'PENDING';
+
+        if (appvs && appvs.length > 0) {
+          const hasRejection = appvs.some(a => a.decision === 'REJECTED');
+          const presApproved = appvs.some(a => a.officer_role === 'ប្រធានក្លឹប' && a.decision === 'APPROVED');
+          const treasApproved = appvs.some(a => a.officer_role === 'បេឡាធិការ' && a.decision === 'APPROVED');
+
+          if (hasRejection || decision === 'REJECTED') {
+            newAppStatus = 'REJECTED';
+          } else if (presApproved && treasApproved) {
+            newAppStatus = 'APPROVED';
+          }
+        }
+
+        if (newAppStatus !== 'PENDING') {
+          await supabase.from('loan_applications').update({ status: newAppStatus }).eq('id', applicationId);
+        }
+
+        await insertAuditLog('loan_applications', applicationId, 'UPDATE', { status: app.status }, { status: newAppStatus, decision, comment }, userEmail);
+      }
+
+      await fetchDataFromSupabase();
+      return { success: true };
+    } else {
+      setApplications(prev => prev.map(a => a.id === applicationId ? { ...a, status: decision === 'REJECTED' ? 'REJECTED' : 'APPROVED' } : a));
+      return { success: true };
+    }
+  };
+
+  // 7. MEMBER EXIT (សមាជិកចាកចេញ)
+  const exitMember = async (
+    memberId: string, 
+    payoutData: { exitDate: string; payoutMethod: import('../types').PaymentMethod; notes?: string; hasWrittenDebtNote: boolean }
+  ): Promise<{ success: boolean; error?: string; exitRecord?: MemberExit }> => {
+    if (!isOfficer) {
+      return { success: false, error: 'មានតែប្រធានក្លឹប ឬបេឡាធិការប៉ុណ្ណោះដែលមានសិទ្ធិធ្វើការទូទាត់សមាជិកចាកចេញ!' };
+    }
+
+    const member = members.find(m => m.id === memberId);
+    if (!member) return { success: false, error: 'រកមិនឃើញសមាជិកទេ' };
+
+    if (member.role === 'ប្រធានក្លឹប' || member.role === 'បេឡាធិការ') {
+      return { success: false, error: 'ប្រធានក្លឹប ឬ បេឡាធិការ មិនអាចចាកចេញបានទេ! ត្រូវធ្វើការប្តូរមុខតំណែងជាមុនសិន។' };
+    }
+
+    const userEmail = supabaseUser?.email || currentUser?.email || currentUser?.nameKhmer || 'Officer';
+
+    const savingsAtExit = member.totalSavings;
+    const dividendsAtExit = member.totalDividendsEarned;
+
+    // Active loan deduction
+    const memberLoans = loans.filter(l => l.borrowerId === memberId && (l.status === 'ACTIVE' || l.status === 'OVERDUE'));
+    const loanDeduction = memberLoans.reduce((sum, l) => sum + l.remainingBalance, 0);
+
+    const payoutAmount = savingsAtExit + dividendsAtExit - loanDeduction;
+
+    if (payoutAmount < 0 && !payoutData.hasWrittenDebtNote) {
+      return { success: false, error: 'ទឹកប្រាក់ទូទាត់អវិជ្ជមាន! ត្រូវមានលិខិតទទួលស្គាល់បំណុលជាលាយលក្ខណ៍អក្សរ។' };
+    }
+
+    const newExitId = crypto.randomUUID();
+    const receiptNum = `EX-${payoutData.exitDate.replace(/-/g, '')}-${Date.now().toString().slice(-3)}`;
+
+    const exitRecord: MemberExit = {
+      id: newExitId,
+      memberId,
+      memberName: member.nameKhmer,
+      exitDate: payoutData.exitDate,
+      savingsAtExit,
+      dividendsAtExit,
+      loanDeduction,
+      payoutAmount,
+      payoutMethod: payoutData.payoutMethod,
+      receiptNumber: receiptNum,
+      paidBy: userEmail,
+      notes: payoutData.notes,
+      hasWrittenDebtNote: payoutData.hasWrittenDebtNote,
+      createdAt: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured) {
+      const { error: exitErr } = await supabase.from('member_exits').insert([mapMemberExitToRow(exitRecord)]);
+      if (exitErr) {
+        handleSupabaseError(exitErr, 'Record Member Exit');
+        return { success: false, error: exitErr.message };
+      }
+
+      const { error: memErr } = await supabase.from('members').update({ status: 'LEFT' }).eq('id', memberId);
+      if (memErr) {
+        handleSupabaseError(memErr, 'Update Member Status to LEFT');
+        return { success: false, error: memErr.message };
+      }
+
+      await insertAuditLog('members', memberId, 'UPDATE', { status: member.status }, { status: 'LEFT' }, userEmail);
+      await insertAuditLog('member_exits', newExitId, 'INSERT', null, exitRecord, userEmail);
+
+      await fetchDataFromSupabase();
+      return { success: true, exitRecord };
+    } else {
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, status: 'LEFT' } : m));
+      setMemberExits(prev => [exitRecord, ...prev]);
+      return { success: true, exitRecord };
     }
   };
 
@@ -1230,16 +1688,7 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetToDefaultData = async () => {
-    if (isSupabaseConfigured) {
-      await seedInitialDataToSupabase();
-    } else {
-      setMembers(INITIAL_MEMBERS);
-      setSavingsRecords(INITIAL_SAVINGS_RECORDS);
-      setLoans(INITIAL_LOANS);
-      setApplications(INITIAL_APPLICATIONS);
-      setSentReminderIds([]);
-      setCurrentUser(INITIAL_MEMBERS[0]);
-    }
+    await fetchDataFromSupabase();
   };
 
   return (
@@ -1274,6 +1723,17 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoginModalOpen,
       setIsLoginModalOpen,
       officerTerms,
+      clubSettings,
+      expenses,
+      reconciliations,
+      fiscalClosings,
+      loanApprovals,
+      memberExits,
+      auditLogs,
+      isOfficer,
+      isPresident,
+      isTreasurer,
+      isYearClosed,
       transferOfficeRole,
       login,
       quickLoginAsMember,
@@ -1295,7 +1755,14 @@ export const ClubProvider: React.FC<{ children: React.ReactNode }> = ({ children
       voidLoanPayment,
       markReminderSent,
       refreshData: fetchDataFromSupabase,
-      resetToDefaultData
+      resetToDefaultData,
+      updateClubSettings,
+      addExpense,
+      voidExpense,
+      addReconciliation,
+      closeFiscalYear,
+      decideLoanApplication,
+      exitMember
     }}>
       {children}
     </ClubContext.Provider>

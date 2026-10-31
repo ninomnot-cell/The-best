@@ -322,6 +322,96 @@ CREATE TABLE IF NOT EXISTS officer_terms (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 10. Create Club Settings Table (តារាងកំណត់រចនាសម្ព័ន្ធសមាគម)
+CREATE TABLE IF NOT EXISTS club_settings (
+    id INT PRIMARY KEY DEFAULT 1,
+    club_name_khmer VARCHAR(150) NOT NULL DEFAULT 'សមាគម ឌឹ បេស៍ ហ្វាមីលី ក្លឹប',
+    current_fiscal_year INT NOT NULL DEFAULT 2026,
+    member_loan_rate DECIMAL(5,2) NOT NULL DEFAULT 1.20,
+    external_loan_rate DECIMAL(5,2) NOT NULL DEFAULT 2.50,
+    default_monthly_commitment DECIMAL(12,2) NOT NULL DEFAULT 100.00,
+    late_fee_type VARCHAR(30) NOT NULL DEFAULT 'PERCENT_PER_MONTH',
+    late_fee_value DECIMAL(8,2) NOT NULL DEFAULT 1.00,
+    grace_days INT NOT NULL DEFAULT 3,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 11. Create Expenses Table (តារាងចំណាយសមាគម)
+CREATE TABLE IF NOT EXISTS expenses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    category VARCHAR(30) NOT NULL CHECK (category IN ('MEETING', 'BANK_FEE', 'PRINTING', 'TRANSPORT', 'OTHER')),
+    description TEXT NOT NULL,
+    amount DECIMAL(14,2) NOT NULL CHECK (amount > 0),
+    payment_method VARCHAR(30) NOT NULL DEFAULT 'ABA_PAY',
+    reference_number VARCHAR(100),
+    recorded_by VARCHAR(150) NOT NULL,
+    is_voided BOOLEAN NOT NULL DEFAULT false,
+    voided_by VARCHAR(150),
+    void_reason TEXT,
+    voided_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 12. Create Cash Reconciliations Table (តារាងផ្ទៀងផ្ទាត់សាច់ប្រាក់ប្រចាំខែ)
+CREATE TABLE IF NOT EXISTS cash_reconciliations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    period_year INT NOT NULL,
+    period_month INT NOT NULL CHECK (period_month BETWEEN 1 AND 12),
+    system_balance DECIMAL(14,2) NOT NULL,
+    actual_cash DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    actual_bank DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    notes TEXT,
+    recorded_by VARCHAR(150) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_reconcil_period UNIQUE (period_year, period_month)
+);
+
+-- 13. Create Fiscal Year Closings Table (តារាងបិទបញ្ជីប្រចាំឆ្នាំ)
+CREATE TABLE IF NOT EXISTS fiscal_year_closings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    fiscal_year INT UNIQUE NOT NULL,
+    total_savings DECIMAL(14,2) NOT NULL,
+    interest_income DECIMAL(14,2) NOT NULL,
+    late_fees DECIMAL(14,2) NOT NULL,
+    total_expenses DECIMAL(14,2) NOT NULL,
+    net_profit DECIMAL(14,2) NOT NULL,
+    total_dividends DECIMAL(14,2) NOT NULL,
+    closed_by VARCHAR(150) NOT NULL,
+    closed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT
+);
+
+-- 14. Create Loan Approvals Table (តារាងការអនុម័តកម្ចីពីគណៈកម្មការ)
+CREATE TABLE IF NOT EXISTS loan_approvals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    application_id UUID NOT NULL REFERENCES loan_applications(id) ON DELETE CASCADE,
+    officer_id UUID REFERENCES members(id) ON DELETE SET NULL,
+    officer_name VARCHAR(100) NOT NULL,
+    officer_role VARCHAR(50) NOT NULL,
+    decision VARCHAR(20) NOT NULL CHECK (decision IN ('APPROVED', 'REJECTED')),
+    comment TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_app_officer UNIQUE (application_id, officer_role)
+);
+
+-- 15. Create Member Exits Table (តារាងសមាជិកចាកចេញ)
+CREATE TABLE IF NOT EXISTS member_exits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    member_id UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
+    exit_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    savings_at_exit DECIMAL(14,2) NOT NULL,
+    dividends_at_exit DECIMAL(14,2) NOT NULL,
+    loan_deduction DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    payout_amount DECIMAL(14,2) NOT NULL,
+    payout_method VARCHAR(30) NOT NULL DEFAULT 'ABA_PAY',
+    receipt_number VARCHAR(100) UNIQUE NOT NULL,
+    paid_by VARCHAR(150) NOT NULL,
+    notes TEXT,
+    has_written_debt_note BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Optimized Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_members_role ON members(role);
 CREATE INDEX IF NOT EXISTS idx_savings_member_date ON monthly_savings(member_id, payment_date);
@@ -331,4 +421,8 @@ CREATE INDEX IF NOT EXISTS idx_schedules_due_date ON loan_repayment_schedules(du
 CREATE INDEX IF NOT EXISTS idx_payments_loan ON loan_payments(loan_id);
 CREATE INDEX IF NOT EXISTS idx_audit_table_record ON audit_log(table_name, record_id);
 CREATE INDEX IF NOT EXISTS idx_officer_terms_role ON officer_terms(role, term_start);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
+CREATE INDEX IF NOT EXISTS idx_reconcil_period ON cash_reconciliations(period_year, period_month);
+CREATE INDEX IF NOT EXISTS idx_loan_approvals_app ON loan_approvals(application_id);
+CREATE INDEX IF NOT EXISTS idx_member_exits_member ON member_exits(member_id);
 `;

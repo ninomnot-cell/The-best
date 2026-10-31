@@ -25,7 +25,10 @@ export const SavingsManager: React.FC = () => {
     savingsRecords, 
     addSavingsRecord,
     updateSavingsRecord,
-    deleteSavingsRecord
+    deleteSavingsRecord,
+    clubSettings,
+    isOfficer,
+    isYearClosed
   } = useClub();
 
   const [selectedYear, setSelectedYear] = useState<number>(2026);
@@ -46,12 +49,14 @@ export const SavingsManager: React.FC = () => {
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id || '');
   const [depositMonth, setDepositMonth] = useState<number>(10);
   const [depositYear, setDepositYear] = useState<number>(2026);
-  const [depositAmount, setDepositAmount] = useState<string>('100');
+  const [depositAmount, setDepositAmount] = useState<string>(String(clubSettings?.defaultMonthlyCommitment || 100));
   const [depositDate, setDepositDate] = useState('2026-10-27');
   const [paymentMethod, setPaymentMethod] = useState<'ABA_PAY' | 'WING' | 'CASH' | 'AC_LEDA'>('ABA_PAY');
   const [refNumber, setRefNumber] = useState(`ABA-${Math.floor(100000 + Math.random() * 900000)}`);
   const [recordedBy, setRecordedBy] = useState(defaultRecordedBy);
   const [notes, setNotes] = useState('');
+
+  const isCurrentYearClosed = isYearClosed(selectedYear);
 
   const months = [
     { num: 1, name: 'មករា (Jan)' },
@@ -193,15 +198,27 @@ export const SavingsManager: React.FC = () => {
             <span>ទាញយក CSV</span>
           </button>
 
-          <button
-            onClick={() => setIsDepositModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#00609C] hover:bg-[#004f80] rounded-lg transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" />
-            <span>កត់ត្រាការបង់ប្រាក់</span>
-          </button>
+          {isOfficer && !isCurrentYearClosed && (
+            <button
+              onClick={() => setIsDepositModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#00609C] hover:bg-[#004f80] rounded-lg transition-colors shadow-xs cursor-pointer whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" />
+              <span>កត់ត្រាការបង់ប្រាក់</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Year Closed Warning Banner */}
+      {isCurrentYearClosed && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>ឆ្នាំប្រតិបត្តិការ {selectedYear} ត្រូវ បានបិទបញ្ជីរួចរាល់ (Closed Fiscal Year) - មិនអនុញ្ញាតឱ្យបន្ថែម កែប្រែ ឬលុបទិន្នន័យឡើយ។</span>
+          </div>
+        </div>
+      )}
 
       {/* Top Filter Bar & Summary */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -228,7 +245,7 @@ export const SavingsManager: React.FC = () => {
           <div className="hidden sm:block text-slate-300">|</div>
           <div className="flex items-center gap-1.5 text-slate-500">
             <span>កាតព្វកិច្ចសន្សំ:</span>
-            <span className="font-semibold text-slate-800 font-mono">$100 / សមាជិក / ខែ</span>
+            <span className="font-semibold text-slate-800 font-mono">${clubSettings?.defaultMonthlyCommitment || 100} / សមាជិក / ខែ</span>
           </div>
         </div>
       </div>
