@@ -283,6 +283,29 @@ export interface OverdueInstallmentView {
   late_fee: number;
 }
 
+export interface MonthlyRepaymentView {
+  schedule_id: string;
+  loan_id: string;
+  loan_code: string;
+  borrower_type: 'MEMBER' | 'EXTERNAL';
+  borrower_name: string;
+  borrower_phone: string;
+  installment_number: number;
+  due_date: string;
+  due_year: number;
+  due_month: number;
+  principal_amount: number;
+  interest_amount: number;
+  total_due: number;
+  paid_toward_installment: number;
+  remaining_due: number;
+  schedule_status: 'PENDING' | 'OVERDUE' | 'PAID';
+  paid_date: string | null;
+  receipt_number: string | null;
+  payment_group: 'PAID_ON_TIME' | 'PAID_LATE' | 'OVERDUE' | 'UPCOMING';
+  days_late: number;
+}
+
 export interface NotificationLogRecord {
   id?: string;
   loanId: string;

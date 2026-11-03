@@ -27,6 +27,7 @@ import { SupabaseAuthPage } from './components/SupabaseAuthPage';
 import { LoginModal } from './components/LoginModal';
 import { RecordRepaymentModal } from './components/RecordRepaymentModal';
 import { PrintReceiptModal } from './components/PrintReceiptModal';
+import { MonthlyLoanRepaymentTracking } from './components/MonthlyLoanRepaymentTracking';
 import { Cloud, Radio, RefreshCw } from 'lucide-react';
 
 const MainContent: React.FC = () => {
@@ -38,6 +39,7 @@ const MainContent: React.FC = () => {
       {currentTab === 'members' && <MembersList />}
       {currentTab === 'savings' && <SavingsManager />}
       {currentTab === 'loans' && <LoansManager />}
+      {currentTab === 'monthly_repayments' && <MonthlyLoanRepaymentTracking />}
       {currentTab === 'applications' && <LoanApplicationForm />}
       {currentTab === 'reminders' && <NotificationsManager />}
       {currentTab === 'expenses' && <ExpensesPage />}

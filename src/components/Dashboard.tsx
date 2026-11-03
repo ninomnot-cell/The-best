@@ -229,7 +229,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Quick Action Navigation Tiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <button
           onClick={() => setCurrentTab('members')}
           className="p-3.5 bg-white border border-slate-200 rounded-xl hover:border-[#00609C] hover:bg-blue-50/20 text-left transition-all cursor-pointer group"
@@ -252,6 +252,18 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="mt-2 text-xs font-semibold text-slate-800">តារាងបង់ប្រាក់កម្ចី</div>
           <div className="text-[11px] text-slate-500">កាលវិភាគ & ការប្រាក់</div>
+        </button>
+
+        <button
+          onClick={() => setCurrentTab('monthly_repayments')}
+          className="p-3.5 bg-white border border-slate-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50/20 text-left transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <HandCoins className="w-4 h-4 text-emerald-600" />
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+          </div>
+          <div className="mt-2 text-xs font-semibold text-slate-800">តាមដានបង់ប្រាក់ប្រចាំខែ</div>
+          <div className="text-[11px] text-slate-500">ខែនេះ: បង់រួច / ភាគរយ</div>
         </button>
 
         <button

@@ -13,6 +13,7 @@ import {
   ExternalLink,
   DollarSign
 } from 'lucide-react';
+import { NotificationReminder } from '../types';
 
 export const NotificationsManager: React.FC = () => {
   const { 
@@ -33,15 +34,15 @@ export const NotificationsManager: React.FC = () => {
     return n.status === filter;
   });
 
-  const handleCopySMS = (id: string, text: string) => {
+  const handleCopySMS = (id: string, text: string, notif: NotificationReminder) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
-    markReminderSent(id);
+    markReminderSent(notif.loanId, notif.borrowerName, notif.borrowerPhone, notif.smsMessageKhmer, 'SMS_MANUAL');
     setTimeout(() => setCopiedId(null), 2500);
   };
 
-  const handleOpenSms = (phone: string, text: string, id: string) => {
-    markReminderSent(id);
+  const handleOpenSms = (phone: string, text: string, notif: NotificationReminder) => {
+    markReminderSent(notif.loanId, notif.borrowerName, notif.borrowerPhone, notif.smsMessageKhmer, 'SMS_MANUAL');
     const cleanPhone = phone.replace(/\s+/g, '');
     window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(text)}`;
   };

@@ -14,7 +14,8 @@ import {
   FiscalYearClosing,
   LoanApproval,
   MemberExit,
-  AuditLogRecord
+  AuditLogRecord,
+  OverdueInstallmentView
 } from '../types';
 import { 
   INITIAL_MEMBERS, 

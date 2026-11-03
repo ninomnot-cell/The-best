@@ -112,6 +112,17 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
+              onClick={() => handleNavClick('monthly_repayments')}
+              className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
+                currentTab === 'monthly_repayments'
+                  ? 'border-[#00609C] text-[#00609C] font-bold'
+                  : 'border-transparent'
+              }`}
+            >
+              តាមដានបង់ប្រាក់ប្រចាំខែ
+            </button>
+
+            <button
               onClick={() => handleNavClick('expenses')}
               className={`hover:text-[#00609C] transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 cursor-pointer ${
                 currentTab === 'expenses'
@@ -344,6 +355,12 @@ export const Navbar: React.FC = () => {
             className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'loans' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
           >
             កម្ចី
+          </button>
+          <button 
+            onClick={() => handleNavClick('monthly_repayments')}
+            className={`whitespace-nowrap px-2.5 py-1 rounded ${currentTab === 'monthly_repayments' ? 'bg-[#00609C] text-white' : 'text-slate-600'}`}
+          >
+            តាមដានបង់ប្រាក់
           </button>
           <button 
             onClick={() => handleNavClick('expenses')}
